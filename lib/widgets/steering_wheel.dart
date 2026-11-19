@@ -53,6 +53,12 @@ class _SteeringWheelState extends State<SteeringWheel>
   GameKey? _currentKey;
   int _lastReportedDegree = 0;
 
+  /// Jo ungli wheel ghuma rahi hai — sirf usi ki harkat gini jati hai.
+  /// Baqi controls (pedals, buttons) ki tarah ye bhi raw pointer par
+  /// chalta hai: koi gesture arena nahi, koi touch-slop deri nahi —
+  /// dusri ungli RACE dabaye to wheel foran aur sahi jawab deta hai.
+  int? _pointer;
+
   late final AnimationController _springController;
   Animation<double>? _springAnimation;
 
@@ -83,11 +89,38 @@ class _SteeringWheelState extends State<SteeringWheel>
   }
 
   /// Angle se steering key nikalo aur tabdeeli par khabar do.
+  ///
+  /// Hysteresis: key **lagne** ki hadd dead zone hai, lekin **chhutne**
+  /// ki hadd us se kuch andar hai. Warna hadd par khara wheel A/D ko
+  /// tez tez on/off karke report barsa deta hai aur gari jhatkay khati
+  /// hai — ungli ki halki larazish par bhi.
   void _evaluate() {
+    final engage = widget.deadZoneDeg;
+    final release = math.max(
+      0.0,
+      engage - math.min(2.0, engage * 0.35),
+    );
     final GameKey? key;
-    if (_angleDeg < -widget.deadZoneDeg) {
+    if (_currentKey == GameKey.a) {
+      // A lagi hui hai: release hadd tak rakho, seedha D par bhi ja saktay.
+      if (_angleDeg > engage) {
+        key = GameKey.d;
+      } else if (_angleDeg < -release) {
+        key = GameKey.a;
+      } else {
+        key = null;
+      }
+    } else if (_currentKey == GameKey.d) {
+      if (_angleDeg < -engage) {
+        key = GameKey.a;
+      } else if (_angleDeg > release) {
+        key = GameKey.d;
+      } else {
+        key = null;
+      }
+    } else if (_angleDeg < -engage) {
       key = GameKey.a;
-    } else if (_angleDeg > widget.deadZoneDeg) {
+    } else if (_angleDeg > engage) {
       key = GameKey.d;
     } else {
       key = null;
@@ -122,14 +155,17 @@ class _SteeringWheelState extends State<SteeringWheel>
     return delta;
   }
 
-  void _handlePanStart(DragStartDetails details) {
+  void _handlePointerDown(PointerDownEvent event) {
+    if (_pointer != null) return; // pehli ungli hi malik hai
+    _pointer = event.pointer;
     _springController.stop();
     _springAnimation = null;
-    _lastFingerAngleRad = _fingerAngle(details.localPosition);
+    _lastFingerAngleRad = _fingerAngle(event.localPosition);
   }
 
-  void _handlePanUpdate(DragUpdateDetails details) {
-    final current = _fingerAngle(details.localPosition);
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (event.pointer != _pointer) return;
+    final current = _fingerAngle(event.localPosition);
     if (current == null) return; // centre ke paas — purana angle rakho
     final last = _lastFingerAngleRad;
     if (last != null) {
@@ -145,7 +181,9 @@ class _SteeringWheelState extends State<SteeringWheel>
     _lastFingerAngleRad = current;
   }
 
-  void _handlePanEnd() {
+  void _handlePointerUp(PointerEvent event) {
+    if (event.pointer != _pointer) return;
+    _pointer = null;
     _lastFingerAngleRad = null;
     // Spring return — natural ease-out curve, ~200ms (FR-10).
     _springAnimation = Tween<double>(begin: _angleDeg, end: 0).animate(
@@ -162,12 +200,12 @@ class _SteeringWheelState extends State<SteeringWheel>
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          GestureDetector(
+          Listener(
             behavior: HitTestBehavior.opaque,
-            onPanStart: _handlePanStart,
-            onPanUpdate: _handlePanUpdate,
-            onPanEnd: (_) => _handlePanEnd(),
-            onPanCancel: _handlePanEnd,
+            onPointerDown: _handlePointerDown,
+            onPointerMove: _handlePointerMove,
+            onPointerUp: _handlePointerUp,
+            onPointerCancel: _handlePointerUp,
             child: Transform.rotate(
               angle: _angleDeg * math.pi / 180,
               child: CustomPaint(

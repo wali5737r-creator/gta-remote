@@ -25,8 +25,15 @@ class ControllerTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _StatusPill(hidState: hidState),
-        const Spacer(),
+        // Status pill ko bachi hui jagah tak mehdood rakho — lamba
+        // laptop naam mode pill ko screen se bahar nahi dhakelta.
+        Flexible(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _StatusPill(hidState: hidState),
+          ),
+        ),
+        const SizedBox(width: 10),
         _ModePill(driving: driving, onModeSelected: onModeSelected),
       ],
     );
@@ -75,12 +82,19 @@ class _StatusPill extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 13.5,
-              color: Color(0xFFCBD5E1),
-              fontWeight: FontWeight.w600,
+          // Lamba laptop naam (masalan "DESKTOP-XXXXXX") mode pill ko
+          // screen se bahar na dhakele — naam hadd par "…" ho jaye.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 200),
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: Color(0xFFCBD5E1),
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -135,7 +149,7 @@ class _ModePill extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: active
               ? Colors.white.withValues(alpha: 0.08)

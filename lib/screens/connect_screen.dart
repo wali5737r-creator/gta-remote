@@ -90,8 +90,15 @@ class _ConnectScreenState extends State<ConnectScreen>
       // pehle ho jaye to laptop keyboard dhoond hi nahi pata aur baad me
       // HID connect fail ho jata hai.
       unawaited(_hid.registerApp().catchError((Object _) => false));
-      final devices = await _hid.getBondedDevices();
+      final fetched = await _hid.getBondedDevices();
       if (!mounted) return;
+      // Laptop (computer class) sab se upar — list me earbuds aur
+      // dusre phones bhi hote hain, beginner ko apna laptop pehle
+      // nazar aana chahiye. Har group ke andar asal tartib barqarar.
+      final devices = <BondedDevice>[
+        ...fetched.where((device) => device.isComputer),
+        ...fetched.where((device) => !device.isComputer),
+      ];
       final selectionValid = _selectedAddress != null &&
           devices.any((device) => device.address == _selectedAddress);
       if (_sameDevices(_devices, devices) && selectionValid) {
@@ -106,10 +113,18 @@ class _ConnectScreenState extends State<ConnectScreen>
           if (last != null &&
               devices.any((device) => device.address == last)) {
             _selectedAddress = last;
-          } else if (devices.length == 1) {
-            _selectedAddress = devices.first.address;
           } else {
-            _selectedAddress = null;
+            // List me sirf aik hi computer ho to wahi laptop hai —
+            // khud select kar lo, chahe saath earbuds waghera bhi hon.
+            final computers =
+                devices.where((device) => device.isComputer).toList();
+            if (computers.length == 1) {
+              _selectedAddress = computers.first.address;
+            } else if (devices.length == 1) {
+              _selectedAddress = devices.first.address;
+            } else {
+              _selectedAddress = null;
+            }
           }
         }
       });
@@ -126,7 +141,9 @@ class _ConnectScreenState extends State<ConnectScreen>
   bool _sameDevices(List<BondedDevice> a, List<BondedDevice> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
-      if (a[i].address != b[i].address || a[i].name != b[i].name) {
+      if (a[i].address != b[i].address ||
+          a[i].name != b[i].name ||
+          a[i].majorClass != b[i].majorClass) {
         return false;
       }
     }
@@ -283,6 +300,11 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Pehli dafa wala user yahin atakta hai: koi laptop paired nahi.
+    // Us ke liye pairing guide CONNECT se PEHLE, bilkul samne rakho —
+    // warna woh khali list aur band button dekh kar phas jata hai.
+    // Laptop maujood ho to guide aakhir me sirf reference ke liye hai.
+    final noLaptopYet = _permissionGranted == true && _devices.isEmpty;
     return Scaffold(
       body: PremiumBackground(
         child: SafeArea(
@@ -297,11 +319,32 @@ class _ConnectScreenState extends State<ConnectScreen>
                     const SizedBox(height: 22),
                     _buildLaptopSection(),
                     const SizedBox(height: 22),
+                    if (noLaptopYet) ...[
+                      _buildPairingGuide(),
+                      const SizedBox(height: 22),
+                    ],
                     _buildConnectButton(),
+                    if (_devices.isNotEmpty &&
+                        _selectedAddress == null &&
+                        !_busy) ...[
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Pehle upar se apna laptop select karo, phir CONNECT dabao.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFFFACC15),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     _buildStatusLine(),
+                    if (!noLaptopYet) ...[
+                      const SizedBox(height: 22),
+                      _buildPairingGuide(),
+                    ],
                     const SizedBox(height: 22),
-                    _buildPairingGuide(),
+                    _buildTroubleshootingCard(),
                   ],
                 ),
               ),
@@ -420,6 +463,7 @@ class _ConnectScreenState extends State<ConnectScreen>
               child: _DeviceCard(
                 device: device,
                 selected: _selectedAddress == device.address,
+                isLastUsed: device.address == _settings.lastDeviceAddress,
                 onTap: () =>
                     setState(() => _selectedAddress = device.address),
               ),
@@ -560,6 +604,92 @@ class _ConnectScreenState extends State<ConnectScreen>
       ),
     );
   }
+
+  /// Masla aye to hal — bilkul wahi jagah jahan connect fail hota hai.
+  /// Sab se aam wajahen tartib se: purani ghalat pairing, dusri remote
+  /// app, Bluetooth band, battery pabandi.
+  Widget _buildTroubleshootingCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF020617).withValues(alpha: 0.55),
+        border: Border.all(color: const Color(0xFF1E293B)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Theme(
+        // ExpansionTile ki apni divider lines is design me nahi chahiye.
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: const ExpansionTile(
+          tilePadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 14),
+          iconColor: Color(0xFF2DD4BF),
+          collapsedIconColor: Color(0xFF94A3B8),
+          title: Text(
+            'Masla aa raha hai? Ye check karo',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          children: [
+            _HelpPoint(
+              'Connect fail ho raha hai? Laptop ki Bluetooth settings me '
+              'is phone ko "Remove device" karo, phir is app ko khula '
+              'rakh kar dobara pair karo — purani pairing aksar kharab '
+              'hoti hai.',
+            ),
+            _HelpPoint(
+              'Laptop par Bluetooth ON hai? Aur "Add device" wala page '
+              'khula rakho jab phone discoverable karo.',
+            ),
+            _HelpPoint(
+              'Koi dusri remote ya keyboard app (masalan PC Remote) band '
+              'kar do — aik waqt me sirf aik app Bluetooth keyboard ban '
+              'sakti hai.',
+            ),
+            _HelpPoint(
+              'Phone aur laptop paas paas rakho. Phir bhi na ho to dono '
+              'ka Bluetooth aik dafa off karke on karo.',
+            ),
+            _HelpPoint(
+              'Connection bar bar kat-ta hai? Phone Settings → Apps → '
+              'GTA Remote → Battery → Unrestricted kar do.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Masla-hal card ki aik line (bullet ke saath).
+class _HelpPoint extends StatelessWidget {
+  const _HelpPoint(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('•  ', style: TextStyle(color: Color(0xFF2DD4BF))),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 13.5,
+                height: 1.4,
+                color: Color(0xFFCBD5E1),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _GameCard extends StatelessWidget {
@@ -643,12 +773,25 @@ class _DeviceCard extends StatelessWidget {
   const _DeviceCard({
     required this.device,
     required this.selected,
+    required this.isLastUsed,
     required this.onTap,
   });
 
   final BondedDevice device;
   final bool selected;
+
+  /// Ye wahi laptop hai jo pichli dafa istemal hua tha.
+  final bool isLastUsed;
   final VoidCallback onTap;
+
+  /// Device ki qisam ke hisab se icon — list me earbuds aur dusre
+  /// phones bhi hote hain; icon se foran pata chale konsa laptop hai.
+  IconData get _icon {
+    if (device.isComputer) return Icons.laptop_windows;
+    if (device.isPhone) return Icons.smartphone;
+    if (device.isAudio) return Icons.headphones;
+    return Icons.bluetooth;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -672,12 +815,13 @@ class _DeviceCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.laptop_windows,
-                  color: Color(0xFFCBD5E1), size: 24),
+              Icon(_icon, color: const Color(0xFFCBD5E1), size: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   device.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 15.5,
                     fontWeight: FontWeight.w600,
@@ -685,6 +829,24 @@ class _DeviceCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (isLastUsed) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'Aakhri laptop',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFFFCD34D),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+              ],
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 9, vertical: 4),

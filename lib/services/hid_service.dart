@@ -54,15 +54,28 @@ class HidState {
 
 /// Pehle se paired (bonded) Bluetooth device.
 class BondedDevice {
-  const BondedDevice({required this.name, required this.address});
+  const BondedDevice({
+    required this.name,
+    required this.address,
+    this.majorClass = 0,
+  });
 
   final String name;
   final String address;
+
+  /// Bluetooth major device class (native side se): computer = 0x100,
+  /// phone = 0x200, audio/video (earbuds waghera) = 0x400, 0 = maloom nahi.
+  final int majorClass;
+
+  bool get isComputer => majorClass == 0x100;
+  bool get isPhone => majorClass == 0x200;
+  bool get isAudio => majorClass == 0x400;
 
   factory BondedDevice.fromMap(Map<dynamic, dynamic> map) {
     return BondedDevice(
       name: (map['name'] as String?) ?? 'Unknown device',
       address: (map['address'] as String?) ?? '',
+      majorClass: (map['majorClass'] as num?)?.toInt() ?? 0,
     );
   }
 }

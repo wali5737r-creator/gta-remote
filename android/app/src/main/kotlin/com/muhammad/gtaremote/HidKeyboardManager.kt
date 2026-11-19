@@ -410,7 +410,7 @@ class HidKeyboardManager(
     // Devices
     // -------------------------------------------------------------------------
 
-    private fun bondedDevices(): List<Map<String, String>> {
+    private fun bondedDevices(): List<Map<String, Any>> {
         if (!hasConnectPermission()) return emptyList()
         val devices = try {
             bluetoothAdapter?.bondedDevices ?: emptySet()
@@ -423,7 +423,19 @@ class HidKeyboardManager(
             } catch (e: SecurityException) {
                 device.address
             }
-            mapOf("name" to name, "address" to device.address)
+            // Device ki qisam (computer / phone / audio…) — UI isi se
+            // laptop ko earbuds waghera se alag pehchanti hai, warna
+            // beginner ko list me sab aik jaisa lagta hai.
+            val majorClass = try {
+                device.bluetoothClass?.majorDeviceClass ?: 0
+            } catch (e: SecurityException) {
+                0
+            }
+            mapOf(
+                "name" to name,
+                "address" to device.address,
+                "majorClass" to majorClass
+            )
         }
     }
 

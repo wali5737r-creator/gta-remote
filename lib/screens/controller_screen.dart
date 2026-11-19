@@ -51,7 +51,11 @@ class _ControllerScreenState extends State<ControllerScreen>
 
   bool _runOn = false;
   bool _fTapInProgress = false;
-  double _wheelAngleDeg = 0;
+
+  /// Steering angle sirf readout ke liye hai — ValueNotifier is liye
+  /// ke har degree ki tabdeeli par poori controller screen dobara na
+  /// bane (steering ke doran ye second me darjanon dafa badalta hai).
+  final ValueNotifier<double> _wheelAngle = ValueNotifier<double>(0);
 
   String? _bannerText;
   Timer? _bannerTimer;
@@ -79,11 +83,20 @@ class _ControllerScreenState extends State<ControllerScreen>
     });
     if (_connected) WakelockPlus.enable();
     _settings.addListener(_onSettingsChanged);
+    // Pehle frame ke baad maujooda mode ka banner aik dafa dikhao —
+    // user ko foran tasdeeq mil jati hai ke woh controller par hai
+    // aur kis mode me hai (connect kamyab hone ka sab se wazeh ishara).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _connected) {
+        _showBanner(_driving ? '🚗  DRIVING' : '🚶  ON FOOT');
+      }
+    });
   }
 
   @override
   void dispose() {
     _bannerTimer?.cancel();
+    _wheelAngle.dispose();
     _settings.removeListener(_onSettingsChanged);
     _hidSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -154,11 +167,14 @@ class _ControllerScreenState extends State<ControllerScreen>
   void _switchMode(bool driving) {
     if (_driving == driving) return;
     _clearAllKeys();
-    setState(() {
-      _driving = driving;
-      _bannerText = driving ? '🚗  DRIVING' : '🚶  ON FOOT';
-    });
+    setState(() => _driving = driving);
+    _showBanner(driving ? '🚗  DRIVING' : '🚶  ON FOOT');
     _doubleHaptic();
+  }
+
+  /// Mode banner ~650ms ke liye dikhao (FR-21).
+  void _showBanner(String text) {
+    if (mounted) setState(() => _bannerText = text);
     _bannerTimer?.cancel();
     _bannerTimer = Timer(const Duration(milliseconds: 650), () {
       if (mounted) setState(() => _bannerText = null);
@@ -252,38 +268,51 @@ class _ControllerScreenState extends State<ControllerScreen>
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) _confirmExit();
-      },
-      child: Scaffold(
-        body: PremiumBackground(
-          child: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final wheelSize =
-                    (constraints.maxHeight * 0.60).clamp(185.0, 230.0);
-                return Stack(
-                  children: [
-                    Positioned(
-                      top: 8,
-                      left: 16,
-                      right: 16,
-                      child: ControllerTopBar(
-                        hidState: _hidState,
-                        driving: _driving,
-                        onModeSelected: _switchMode,
+    // System font bohat bara ho (accessibility) to tay-shuda size ke
+    // controls (pedals, RUN button, pills) phat sakte hain — controller
+    // par font scale ko mehfooz hadd me rakho, layout kabhi na toote.
+    final media = MediaQuery.of(context);
+    final fontFactor = (media.textScaler.scale(14) / 14).clamp(0.85, 1.15);
+    return MediaQuery(
+      data: media.copyWith(textScaler: TextScaler.linear(fontFactor)),
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) _confirmExit();
+        },
+        child: Scaffold(
+          body: PremiumBackground(
+            child: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Chhoti landscape height (chhote phones) par wheel
+                  // chhota aur button cluster halka sa scale-down —
+                  // warna ENTER CAR top bar ke neeche ghus sakta hai.
+                  final shortScreen = constraints.maxHeight < 360;
+                  final wheelSize = (constraints.maxHeight * 0.60)
+                      .clamp(shortScreen ? 165.0 : 185.0, 230.0);
+                  final clusterScale = shortScreen ? 0.86 : 1.0;
+                  return Stack(
+                    children: [
+                      Positioned(
+                        top: 8,
+                        left: 16,
+                        right: 16,
+                        child: ControllerTopBar(
+                          hidState: _hidState,
+                          driving: _driving,
+                          onModeSelected: _switchMode,
+                        ),
                       ),
-                    ),
-                    _buildModeContent(wheelSize),
-                    if (_driving) _buildAngleReadout(),
-                    _buildGhostButtons(),
-                    if (_bannerText != null) _buildBanner(),
-                    if (!_connected) _buildDisconnectedOverlay(),
-                  ],
-                );
-              },
+                      _buildModeContent(wheelSize, clusterScale),
+                      if (_driving) _buildAngleReadout(),
+                      _buildGhostButtons(),
+                      if (_bannerText != null) _buildBanner(),
+                      if (!_connected) _buildDisconnectedOverlay(),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -292,7 +321,7 @@ class _ControllerScreenState extends State<ControllerScreen>
   }
 
   /// Mode ke controls — AnimatedSwitcher se naram tabdeeli (~250ms).
-  Widget _buildModeContent(double wheelSize) {
+  Widget _buildModeContent(double wheelSize, double clusterScale) {
     final flip = _settings.flipControls;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
@@ -308,12 +337,12 @@ class _ControllerScreenState extends State<ControllerScreen>
         );
       },
       child: _driving
-          ? _buildDrivingLayer(wheelSize, flip)
-          : _buildOnFootLayer(wheelSize, flip),
+          ? _buildDrivingLayer(wheelSize, flip, clusterScale)
+          : _buildOnFootLayer(wheelSize, flip, clusterScale),
     );
   }
 
-  Widget _buildDrivingLayer(double wheelSize, bool flip) {
+  Widget _buildDrivingLayer(double wheelSize, bool flip, double clusterScale) {
     final profile = _settings.profile;
     final wheel = SteeringWheel(
       size: wheelSize,
@@ -326,9 +355,7 @@ class _ControllerScreenState extends State<ControllerScreen>
           key == null ? const {} : {key},
         );
       },
-      onAngleChanged: (angle) {
-        if (mounted) setState(() => _wheelAngleDeg = angle);
-      },
+      onAngleChanged: (angle) => _wheelAngle.value = angle,
     );
     final cluster = _buildDrivingCluster(profile);
     return Stack(
@@ -344,13 +371,17 @@ class _ControllerScreenState extends State<ControllerScreen>
           left: flip ? 26 : null,
           right: flip ? null : 26,
           bottom: 16,
-          child: cluster,
+          child: Transform.scale(
+            scale: clusterScale,
+            alignment: flip ? Alignment.bottomLeft : Alignment.bottomRight,
+            child: cluster,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildOnFootLayer(double wheelSize, bool flip) {
+  Widget _buildOnFootLayer(double wheelSize, bool flip, double clusterScale) {
     final profile = _settings.profile;
     final joystick = WasdJoystick(
       size: wheelSize * 0.88,
@@ -370,7 +401,11 @@ class _ControllerScreenState extends State<ControllerScreen>
           left: flip ? 26 : null,
           right: flip ? null : 26,
           bottom: 16,
-          child: cluster,
+          child: Transform.scale(
+            scale: clusterScale,
+            alignment: flip ? Alignment.bottomLeft : Alignment.bottomRight,
+            child: cluster,
+          ),
         ),
       ],
     );
@@ -504,23 +539,31 @@ class _ControllerScreenState extends State<ControllerScreen>
   }
 
   /// Centre screen par chhota steering angle readout (SRS §7.2).
+  /// Sirf ye chhota sa text dobara banta hai jab angle badle —
+  /// poori screen nahi (ValueNotifier). Touch is par se guzar jata hai.
   Widget _buildAngleReadout() {
-    final angle = _wheelAngleDeg;
-    if (angle.abs() < 1) return const SizedBox.shrink();
-    final arrow = angle < 0 ? '◀' : '▶';
     return Positioned(
       left: 0,
       right: 0,
       top: 0,
       bottom: 0,
-      child: Center(
-        child: Text(
-          '$arrow ${angle.abs().round()}°',
-          style: TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
-            color: const Color(0xFF94A3B8).withValues(alpha: 0.85),
+      child: IgnorePointer(
+        child: Center(
+          child: ValueListenableBuilder<double>(
+            valueListenable: _wheelAngle,
+            builder: (context, angle, _) {
+              if (angle.abs() < 1) return const SizedBox.shrink();
+              final arrow = angle < 0 ? '◀' : '▶';
+              return Text(
+                '$arrow ${angle.abs().round()}°',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                  color: const Color(0xFF94A3B8).withValues(alpha: 0.85),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -666,7 +709,10 @@ class _ControllerScreenState extends State<ControllerScreen>
 }
 
 /// RUN toggle — aik tap par bhagna on (lit), dusre tap par off (FR-16).
-class _RunToggleButton extends StatelessWidget {
+/// Baqi controls ki tarah raw pointer par chalta hai: ungli LAGTE hi
+/// toggle hota hai (tap ke uthne ka intezar nahi) — game me har
+/// millisecond keemti hai, aur gesture arena ka koi jhanjhat nahi.
+class _RunToggleButton extends StatefulWidget {
   const _RunToggleButton({
     required this.on,
     required this.keyLabel,
@@ -678,60 +724,77 @@ class _RunToggleButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_RunToggleButton> createState() => _RunToggleButtonState();
+}
+
+class _RunToggleButtonState extends State<_RunToggleButton> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
+    final on = widget.on;
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (_) {
+        setState(() => _pressed = true);
         HapticFeedback.lightImpact();
-        onTap();
+        widget.onTap();
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 118,
-        height: 74,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: on
-                ? const [Color(0xFFFBBF24), Color(0xFFD97706)]
-                : const [Color(0xFFF59E0B), Color(0xFFB45309)],
-          ),
-          border: Border.all(
-            color: const Color(0xFFFCD34D),
-            width: on ? 3 : 2,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFF59E0B)
-                  .withValues(alpha: on ? 0.55 : 0.32),
-              blurRadius: on ? 26 : 16,
-              offset: const Offset(0, 7),
+      onPointerUp: (_) => setState(() => _pressed = false),
+      onPointerCancel: (_) => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 90),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 118,
+          height: 74,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: on
+                  ? const [Color(0xFFFBBF24), Color(0xFFD97706)]
+                  : const [Color(0xFFF59E0B), Color(0xFFB45309)],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'RUN',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
-                color: Colors.white,
+            border: Border.all(
+              color: const Color(0xFFFCD34D),
+              width: on ? 3 : 2,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF59E0B)
+                    .withValues(alpha: on ? 0.55 : 0.32),
+                blurRadius: on ? 26 : 16,
+                offset: const Offset(0, 7),
               ),
-            ),
-            Text(
-              on ? '● RUNNING' : keyLabel,
-              style: TextStyle(
-                fontSize: 11,
-                letterSpacing: 1,
-                fontWeight: on ? FontWeight.w800 : FontWeight.w400,
-                color: const Color(0xFFFEF3C7),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'RUN',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                  color: Colors.white,
+                ),
               ),
-            ),
-          ],
+              Text(
+                on ? '● RUNNING' : widget.keyLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  letterSpacing: 1,
+                  fontWeight: on ? FontWeight.w800 : FontWeight.w400,
+                  color: const Color(0xFFFEF3C7),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -739,6 +802,8 @@ class _RunToggleButton extends StatelessWidget {
 }
 
 /// Neeche centre ke chhote translucent icon buttons.
+/// Nazar 42dp ka gol button ata hai, lekin chhune ka hissa 48dp hai —
+/// ungli se miss kam hota hai.
 class _GhostIconButton extends StatelessWidget {
   const _GhostIconButton({required this.icon, required this.onTap});
 
@@ -749,15 +814,22 @@ class _GhostIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: const Color(0xFF020617).withValues(alpha: 0.55),
-          border: Border.all(color: const Color(0xFF334155)),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: Center(
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF020617).withValues(alpha: 0.55),
+              border: Border.all(color: const Color(0xFF334155)),
+            ),
+            child: Icon(icon, size: 20, color: const Color(0xFFCBD5E1)),
+          ),
         ),
-        child: Icon(icon, size: 20, color: const Color(0xFFCBD5E1)),
       ),
     );
   }
