@@ -1,0 +1,2 @@
+# Recommended lints for the GTA Remote app.
+include: package:flutter_lints/flutter.yaml

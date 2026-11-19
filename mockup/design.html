@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body { background:#04060B; color:#E5E7EB; width:1560px; padding:38px 30px 32px;
+         background-image:radial-gradient(900px 420px at 50% -80px, rgba(45,212,191,.07), transparent 70%); }
+  h1 { text-align:center; font-size:33px; font-weight:300; letter-spacing:7px; color:#F8FAFC; }
+  h1 b { font-weight:800; color:#2DD4BF; }
+  .sub { text-align:center; color:#7C8DA6; font-size:13.5px; margin-top:9px; letter-spacing:3.5px; text-transform:uppercase; }
+  .row { display:flex; gap:36px; justify-content:center; margin-top:32px; }
+  .col { text-align:center; }
+  .cap { margin-top:16px; font-size:17px; font-weight:700; letter-spacing:4px; color:#E2E8F0; }
+  .cap i { display:block; width:44px; height:3px; border-radius:2px; background:linear-gradient(90deg,#2DD4BF,#0F766E); margin:0 auto 9px; }
+  .cap small { display:block; color:#7C8DA6; font-weight:400; font-size:13.5px; letter-spacing:1px; margin-top:5px; text-transform:none; }
+  /* ===== phone ===== */
+  .phone { position:relative; width:724px; height:392px; border-radius:40px; overflow:hidden;
+           background:
+             radial-gradient(420px 300px at 18% 88%, rgba(45,212,191,.10), transparent 65%),
+             radial-gradient(380px 280px at 86% 90%, rgba(34,197,94,.07), transparent 60%),
+             radial-gradient(300px 240px at 78% 88%, rgba(239,68,68,.05), transparent 60%),
+             linear-gradient(165deg,#111B2E 0%,#0A1120 55%,#060B14 100%);
+           border:1px solid rgba(148,184,220,.16);
+           box-shadow:0 0 0 5px #01030A, 0 30px 70px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 90px rgba(2,6,23,.55); }
+  .phone:before { content:''; position:absolute; inset:0;
+           background:repeating-linear-gradient(115deg, rgba(255,255,255,.014) 0 2px, transparent 2px 5px); }
+  .phone:after { content:''; position:absolute; inset:0;
+           background:linear-gradient(112deg, rgba(255,255,255,.055) 0%, rgba(255,255,255,.012) 26%, transparent 46%); pointer-events:none; }
+  .notch { position:absolute; left:50%; top:0; transform:translateX(-50%); width:150px; height:19px; background:#01030A; border-radius:0 0 14px 14px; z-index:5; }
+  /* top bar */
+  .topbar { position:absolute; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between; padding:15px 18px 0; z-index:4; }
+  .glass { background:rgba(10,17,32,.55); border:1px solid rgba(255,255,255,.09); box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 6px 16px rgba(0,0,0,.35); backdrop-filter:blur(4px); }
+  .status { display:flex; align-items:center; gap:9px; padding:8px 14px; border-radius:999px; font-size:13.5px; letter-spacing:.6px; color:#CBD5E1; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#34D399; box-shadow:0 0 12px #34D399, 0 0 3px #34D399; }
+  .pill { padding:8px 14px; border-radius:999px; color:#FDE68A; font-size:12px; font-weight:700; letter-spacing:2.5px; }
+  /* ===== premium steering wheel ===== */
+  .wheelwrap { position:absolute; left:38px; bottom:32px; width:252px; height:252px; z-index:2; }
+  .wheelwrap:before { content:''; position:absolute; inset:-34px; border-radius:50%;
+           background:radial-gradient(circle, rgba(45,212,191,.13), transparent 65%); }
+  .wheel { position:absolute; inset:0; border-radius:50%; transform:rotate(-24deg);
+           background:conic-gradient(from 205deg, #46536B, #1A2334 26%, #0D1420 52%, #2C3A50 78%, #46536B);
+           box-shadow:0 22px 44px rgba(0,0,0,.65), inset 0 3px 5px rgba(255,255,255,.22), inset 0 -10px 18px rgba(0,0,0,.6); }
+  .wheelInner { position:absolute; inset:23px; border-radius:50%;
+           background:radial-gradient(circle at 50% 42%, #131E33 0%, #0A101D 72%);
+           box-shadow:inset 0 10px 26px rgba(0,0,0,.75), inset 0 -2px 4px rgba(255,255,255,.05); overflow:hidden; }
+  .stitch { position:absolute; inset:6px; border-radius:50%; border:2px dashed rgba(203,213,225,.34); }
+  .stripe { position:absolute; left:50%; top:-1px; width:17px; height:22px; margin-left:-8.5px; z-index:3;
+           background:linear-gradient(180deg,#F1F5F9,#94A3B8); border-radius:3px; box-shadow:0 1px 3px rgba(0,0,0,.5); }
+  .spokeH { position:absolute; left:50%; top:50%; width:196px; height:38px; margin:-19px 0 0 -98px; border-radius:10px;
+           background:linear-gradient(180deg,#E3EAF2 0%,#9FB0C3 38%,#64788F 62%,#A9BACB 100%);
+           box-shadow:0 5px 12px rgba(0,0,0,.55), inset 0 1px 1px rgba(255,255,255,.8); }
+  .spokeB { position:absolute; left:50%; top:50%; width:38px; height:112px; margin:8px 0 0 -19px; border-radius:10px;
+           background:linear-gradient(90deg,#C6D2DF 0%,#8296AC 45%,#5B6E84 70%,#9DB0C4 100%);
+           box-shadow:0 5px 12px rgba(0,0,0,.55), inset 0 1px 1px rgba(255,255,255,.7); }
+  .hub { position:absolute; left:50%; top:50%; width:98px; height:98px; margin:-49px 0 0 -49px; border-radius:50%; z-index:2;
+           background:radial-gradient(circle at 42% 32%, #5B6B84, #232F45 58%, #141D2E);
+           border:2px solid rgba(255,255,255,.14);
+           box-shadow:0 10px 22px rgba(0,0,0,.6), inset 0 2px 4px rgba(255,255,255,.28), inset 0 -6px 10px rgba(0,0,0,.5);
+           display:flex; align-items:center; justify-content:center; }
+  .hubring { width:46px; height:46px; border-radius:50%; border:3px solid #2DD4BF;
+           box-shadow:0 0 14px rgba(45,212,191,.45), inset 0 0 10px rgba(45,212,191,.4);
+           background:radial-gradient(circle at 42% 34%, #3B4B63, #1B2639); }
+  /* ===== racing pedals ===== */
+  .pedals { position:absolute; right:38px; bottom:22px; display:flex; align-items:flex-end; gap:24px; z-index:2; }
+  .pedal { display:flex; flex-direction:column; align-items:center; position:relative; }
+  .pedal:before { content:''; position:absolute; bottom:24px; left:50%; transform:translateX(-50%); width:110%; height:26px; border-radius:50%; filter:blur(13px); z-index:-1; }
+  .pRace:before { background:rgba(34,197,94,.34); }
+  .pBrake:before { background:rgba(239,68,68,.34); }
+  .arm { width:12px; height:38px; border-radius:5px; transform:rotate(7deg); transform-origin:bottom center; margin-bottom:-4px;
+           background:linear-gradient(90deg,#E7EDF4,#8D9DB1 55%,#5E7089); box-shadow:0 3px 7px rgba(0,0,0,.5); }
+  .pad { position:relative; border-radius:11px; border:1px solid rgba(255,255,255,.5); overflow:hidden;
+           background:linear-gradient(155deg,#F0F4F9 0%,#B4C1D1 34%,#7E90A6 68%,#C3CFDD 100%);
+           box-shadow:0 16px 30px rgba(0,0,0,.6), inset 0 1px 2px rgba(255,255,255,.9), inset 0 -4px 8px rgba(15,23,42,.35); }
+  .pad:after { content:''; position:absolute; inset:0;
+           background:repeating-linear-gradient(180deg, rgba(13,20,32,.62) 0 8px, transparent 8px 17px); }
+  .racepad { width:74px; height:150px; }
+  .brakepad { width:112px; height:94px; }
+  .plabel { margin-top:10px; font-size:13.5px; font-weight:700; letter-spacing:4.5px; }
+  /* glossy round buttons */
+  .topbtns { position:absolute; right:32px; bottom:242px; display:flex; gap:15px; z-index:3; }
+  .rbtn { position:relative; width:70px; height:70px; border-radius:50%; color:#fff; font-weight:800; overflow:hidden;
+           display:flex; align-items:center; justify-content:center; text-align:center; line-height:1.2;
+           border:1px solid rgba(255,255,255,.35); }
+  .rbtn:before { content:''; position:absolute; top:4px; left:12%; width:76%; height:42%; border-radius:50%;
+           background:linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,0)); }
+  .car { background:radial-gradient(circle at 38% 30%, #2DD4BF, #0D9488 58%, #0B6E63); box-shadow:0 12px 26px rgba(13,148,136,.45), inset 0 -5px 9px rgba(0,0,0,.3); font-size:12.5px; letter-spacing:.6px; }
+  .hand { background:radial-gradient(circle at 38% 30%, #FBBF24, #D97706 58%, #9A4A03); box-shadow:0 12px 26px rgba(217,119,6,.42), inset 0 -5px 9px rgba(0,0,0,.3); font-size:11px; letter-spacing:.6px; }
+  /* joystick */
+  .joybase { position:absolute; left:56px; bottom:42px; width:208px; height:208px; border-radius:50%; z-index:2;
+           border:1px solid rgba(255,255,255,.1);
+           background:radial-gradient(circle at 50% 38%, #182540 0%, #0C1424 62%, #070D18 100%);
+           box-shadow:inset 0 12px 30px rgba(0,0,0,.7), inset 0 -2px 5px rgba(255,255,255,.05), 0 16px 34px rgba(0,0,0,.5); }
+  .joybase:before { content:''; position:absolute; inset:-30px; border-radius:50%; background:radial-gradient(circle, rgba(45,212,191,.1), transparent 65%); }
+  .joybase .dir { position:absolute; color:#5B718C; font-size:15px; font-weight:800; }
+  .knob { position:absolute; left:50%; top:50%; width:90px; height:90px; margin:-45px 0 0 -45px; border-radius:50%;
+           transform:translate(20px,-16px);
+           background:radial-gradient(circle at 36% 28%, #C8FFF4, #34D3BE 34%, #0D9488 68%, #0A5F57);
+           border:1px solid rgba(255,255,255,.45);
+           box-shadow:0 14px 28px rgba(0,0,0,.6), inset 0 -6px 12px rgba(0,0,0,.35), inset 0 3px 6px rgba(255,255,255,.5); }
+  .jlabel { position:absolute; left:56px; width:208px; bottom:16px; text-align:center; font-size:12px; letter-spacing:3.5px; color:#7DD3CE; font-weight:700; }
+  /* foot buttons */
+  .footbtns { position:absolute; right:40px; bottom:36px; display:flex; align-items:flex-end; gap:19px; z-index:2; }
+  .run { position:relative; width:120px; height:76px; border-radius:18px; color:#fff; font-weight:800; letter-spacing:2px; font-size:17px;
+           display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden;
+           background:linear-gradient(180deg,#FBBF24,#D97706 62%,#92400E); border:1px solid rgba(255,255,255,.35);
+           box-shadow:0 14px 30px rgba(217,119,6,.4), inset 0 1px 0 rgba(255,255,255,.5), inset 0 -6px 10px rgba(0,0,0,.28); }
+  .run small { font-size:10.5px; letter-spacing:2px; color:#FEF3C7; margin-top:2px; }
+  .jump { position:relative; width:98px; height:98px; border-radius:50%; color:#fff; font-weight:800; letter-spacing:2px; font-size:16px;
+           display:flex; align-items:center; justify-content:center; overflow:hidden;
+           background:radial-gradient(circle at 38% 28%, #7DD3FC, #0284C7 60%, #075985); border:1px solid rgba(255,255,255,.4);
+           box-shadow:0 14px 30px rgba(2,132,199,.42), inset 0 -6px 11px rgba(0,0,0,.3); }
+  .run:before, .jump:before { content:''; position:absolute; top:4px; left:14%; width:72%; height:40%; border-radius:50%;
+           background:linear-gradient(180deg, rgba(255,255,255,.45), rgba(255,255,255,0)); }
+  .topbtns.foot { bottom:152px; right:46px; }
+</style>
+</head>
+<body>
+  <h1>GTA <b>REMOTE</b> — FINAL DESIGN</h1>
+  <div class="sub">Bluetooth Controller &nbsp;•&nbsp; No Internet &nbsp;•&nbsp; GTA V &nbsp;•&nbsp; GTA San Andreas (Original + Definitive)</div>
+
+  <div class="row">
+    <div class="col">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="topbar">
+          <div class="status glass"><div class="dot"></div>Connected • GTA V</div>
+          <div class="pill glass">DRIVING</div>
+        </div>
+        <div class="wheelwrap">
+          <div class="wheel">
+            <div class="stripe"></div>
+            <div class="wheelInner">
+              <div class="stitch"></div>
+              <div class="spokeH"></div><div class="spokeB"></div>
+              <div class="hub"><div class="hubring"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="topbtns">
+          <div class="rbtn car">EXIT<br>CAR</div>
+          <div class="rbtn hand">HAND<br>BRAKE</div>
+        </div>
+        <div class="pedals">
+          <div class="pedal pRace">
+            <div class="arm"></div><div class="pad racepad"></div>
+            <div class="plabel" style="color:#86EFAC;">RACE</div>
+          </div>
+          <div class="pedal pBrake">
+            <div class="arm"></div><div class="pad brakepad"></div>
+            <div class="plabel" style="color:#FCA5A5;">BRAKE</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><i></i>DRIVING MODE<small>gari chalane ke controls</small></div>
+    </div>
+
+    <div class="col">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="topbar">
+          <div class="status glass"><div class="dot"></div>Connected • GTA V</div>
+          <div class="pill glass">ON FOOT</div>
+        </div>
+        <div class="joybase">
+          <div class="dir" style="top:9px; left:50%; margin-left:-8px;">▲</div>
+          <div class="dir" style="bottom:9px; left:50%; margin-left:-8px;">▼</div>
+          <div class="dir" style="left:11px; top:50%; margin-top:-11px;">◀</div>
+          <div class="dir" style="right:11px; top:50%; margin-top:-11px;">▶</div>
+          <div class="knob"></div>
+        </div>
+        <div class="jlabel">JOYSTICK — CHALNA</div>
+        <div class="topbtns foot">
+          <div class="rbtn car">ENTER<br>CAR</div>
+        </div>
+        <div class="footbtns">
+          <div class="run">RUN<small>● ON</small></div>
+          <div class="jump">JUMP</div>
+        </div>
+      </div>
+      <div class="cap"><i></i>PAIDAL MODE<small>gari se bahar — chalna, bhagna, chalang</small></div>
+    </div>
+  </div>
+</body>
+</html>

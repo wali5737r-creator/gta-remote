@@ -1,0 +1,24 @@
+name: gta_remote
+description: "GTA Remote - phone ko Bluetooth steering wheel bana kar laptop par GTA chalao. Koi internet nahi, laptop par koi program nahi."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.13.1 <4.0.0'
+  flutter: '>=3.41.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Controller screen ko jaagta rakhne ke liye. Verified 2026-11-19 on pub.dev.
+  wakelock_plus: 1.8.2
+  # Settings, game profile aur last laptop yaad rakhne ke liye. Verified 2026-11-19 on pub.dev.
+  shared_preferences: 2.5.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+
+flutter:
+  uses-material-design: true

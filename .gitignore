@@ -1,0 +1,14 @@
+# Flutter / Dart build outputs — generated in CI, not committed.
+.dart_tool/
+build/
+.pub-cache/
+.pub/
+
+# Android Gradle outputs
+android/.gradle/
+android/app/build/
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
