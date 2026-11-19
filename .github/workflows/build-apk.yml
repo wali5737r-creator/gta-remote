@@ -1,0 +1,60 @@
+# GTA Remote — APK build (GitHub Actions, free)
+#
+# Push karte hi GitHub ke free runner par APK ban jati hai —
+# apne Windows par Flutter install karne ki zaroorat nahi.
+# APK: Actions tab -> is run -> Artifacts -> gta-remote-apk
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17 setup
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter setup (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Android platform files banana
+        # android/ me sirf kuch files hain (gradle wrapper waghera nahi).
+        # flutter create baaki files banata hai. Apni files (permissions,
+        # package name, debug signing, HID manager) pehle backup kar ke
+        # baad me wapas restore karte hain, taa ke flutter create un ko
+        # overwrite na kare.
+        run: |
+          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
+          cp android/app/build.gradle.kts /tmp/build.gradle.kts
+          cp android/app/src/main/kotlin/com/muhammad/gtaremote/MainActivity.kt /tmp/MainActivity.kt
+          cp android/app/src/main/kotlin/com/muhammad/gtaremote/HidKeyboardManager.kt /tmp/HidKeyboardManager.kt
+          flutter create --org com.muhammad --project-name gta_remote --platforms android .
+          cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          cp /tmp/build.gradle.kts android/app/build.gradle.kts
+          cp /tmp/MainActivity.kt android/app/src/main/kotlin/com/muhammad/gtaremote/MainActivity.kt
+          cp /tmp/HidKeyboardManager.kt android/app/src/main/kotlin/com/muhammad/gtaremote/HidKeyboardManager.kt
+          rm -rf android/app/src/main/kotlin/com/muhammad/gta_remote
+
+      - name: Packages lena
+        run: flutter pub get
+
+      - name: Release APK banana
+        run: flutter build apk --release
+
+      - name: APK save karna (download ke liye)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gta-remote-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
