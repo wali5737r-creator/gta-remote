@@ -40,11 +40,14 @@ jobs:
           cp android/app/build.gradle.kts /tmp/build.gradle.kts
           cp android/app/src/main/kotlin/com/muhammad/gtaremote/MainActivity.kt /tmp/MainActivity.kt
           cp android/app/src/main/kotlin/com/muhammad/gtaremote/HidKeyboardManager.kt /tmp/HidKeyboardManager.kt
+          cp -r android/app/src/main/res /tmp/res-backup
           flutter create --org com.muhammad --project-name gta_remote --platforms android .
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           cp /tmp/build.gradle.kts android/app/build.gradle.kts
           cp /tmp/MainActivity.kt android/app/src/main/kotlin/com/muhammad/gtaremote/MainActivity.kt
           cp /tmp/HidKeyboardManager.kt android/app/src/main/kotlin/com/muhammad/gtaremote/HidKeyboardManager.kt
+          rm -rf android/app/src/main/res
+          cp -r /tmp/res-backup android/app/src/main/res
           rm -rf android/app/src/main/kotlin/com/muhammad/gta_remote
 
       - name: Packages lena
