@@ -268,7 +268,7 @@ class HidService {
           .then((state) => state.isConnected);
       if (!connected) {
         return _current.error ??
-            'Connect nahi ho saka. Laptop par is phone ko pair kiya hua hai, ye check karo — warna neeche wali pairing guide se pehle pair karo.';
+            'Connect nahi ho saka. Laptop ki Bluetooth settings me ja kar is phone ko "Remove device" karo, phir app khuli rakh kar dobara pair karo aur CONNECT dabao.';
       }
       return null;
     } on PlatformException catch (error) {

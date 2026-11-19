@@ -548,22 +548,17 @@ class HidKeyboardManager(
 
     /**
      * App background me jaye to (MainActivity.onPause se):
-     * pehle saari keys chhoro, phir unregister — koi key atak nahi sakti.
+     * saari keys chhoro (zero report) — koi key atak nahi sakti.
+     *
+     * Registration background me bhi REHNE do: pairing confirm aur
+     * discoverable consent jese system dialogs activity ko pause karte
+     * hain — us waqt unregister karne se pairing ke doran laptop ko
+     * keyboard service (SDP record) nazar nahi aati aur baad me HID
+     * connect fail ho jata hai. Unregister sirf dispose aur explicit
+     * disconnect par hota hai.
      */
     fun onHostPause() {
         connectedDevice?.let { sendZeroReport(it) }
-        val pending = pendingRegisterResult
-        if (pending != null) {
-            pendingRegisterResult = null
-            pending.error(
-                "paused",
-                "App background me chali gayi thi — dobara Connect dabao.",
-                null
-            )
-        }
-        if (isRegistered) {
-            unregisterInternal()
-        }
     }
 
     fun dispose() {

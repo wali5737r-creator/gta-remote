@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -56,6 +58,11 @@ class _ConnectScreenState extends State<ConnectScreen> {
     if (!mounted) return;
     setState(() => _permissionGranted = granted);
     if (!granted) return;
+    // Keyboard PEHLE se register kar lo: laptop ko pairing ke waqt hi
+    // keyboard service nazar aani chahiye — agar pairing registration se
+    // pehle ho jaye to laptop keyboard dhoond hi nahi pata aur baad me
+    // HID connect fail ho jata hai.
+    unawaited(_hid.registerApp().catchError((Object _) => false));
     final devices = await _hid.getBondedDevices();
     if (!mounted) return;
     setState(() {
@@ -161,6 +168,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   Future<void> _makeDiscoverable() async {
     if (!await _ensurePermissions()) return;
+    // Pehle keyboard register, phir discoverable — isi order se laptop
+    // pairing ke waqt keyboard service dhoond sakta hai.
+    await _hid.registerApp()
+        .timeout(const Duration(seconds: 10), onTimeout: () => false);
     final started = await _hid.makeDiscoverable();
     if (!mounted) return;
     setState(() {
