@@ -1,5 +1,5 @@
 name: gta_remote
-description: "GTA Remote - phone ko Bluetooth steering wheel bana kar laptop par GTA chalao. Koi internet nahi, laptop par koi program nahi."
+description: "AB GTA - phone ko Bluetooth steering wheel bana kar laptop par GTA chalao. Koi internet nahi, laptop par koi program nahi."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -14,6 +14,10 @@ dependencies:
   wakelock_plus: 1.8.2
   # Settings, game profile aur last laptop yaad rakhne ke liye. Verified 2026-11-19 on pub.dev.
   shared_preferences: 2.5.6
+  # Tilt steering ke liye accelerometer (v2). 7.x line Flutter >=3.41 /
+  # Dart >=3.13 ke saath resolve hoti hai; accelerometerEventStream()
+  # API 6.x se mojood hai aur 7.x me bhi yahi primary tareeqa hai.
+  sensors_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:

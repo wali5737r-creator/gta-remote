@@ -162,7 +162,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       builder: (dialogContext) => AlertDialog(
         title: const Text('Bluetooth permission'),
         content: const Text(
-          'GTA Remote ko Bluetooth permission chahiye taake ye tumhare '
+          'AB GTA ko Bluetooth permission chahiye taake ye tumhare '
           'laptop se connect ho sakay.\n\n'
           'Koi internet use nahi hota, aur koi data kahin nahi jata.',
         ),
@@ -365,7 +365,7 @@ class _ConnectScreenState extends State<ConnectScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'GTA REMOTE',
+                  'AB GTA',
                   style: TextStyle(
                     fontSize: 27,
                     fontWeight: FontWeight.w900,
@@ -482,14 +482,14 @@ class _ConnectScreenState extends State<ConnectScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: canConnect
-                ? const [Color(0xFF14B8A6), Color(0xFF0F766E)]
-                : const [Color(0xFF334155), Color(0xFF1E293B)],
+                ? const [Color(0xFFFB923C), Color(0xFFEA580C)]
+                : const [Color(0xFF374151), Color(0xFF1F2937)],
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: canConnect
               ? [
                   BoxShadow(
-                    color: const Color(0xFF14B8A6).withValues(alpha: 0.4),
+                    color: const Color(0xFFF97316).withValues(alpha: 0.4),
                     blurRadius: 22,
                     offset: const Offset(0, 8),
                   ),
@@ -552,7 +552,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF020617).withValues(alpha: 0.55),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        border: Border.all(color: const Color(0xFF262E3A)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -594,8 +594,8 @@ class _ConnectScreenState extends State<ConnectScreen>
               icon: const Icon(Icons.bluetooth_searching, size: 19),
               label: const Text('Phone ko discoverable banao'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF2DD4BF),
-                side: const BorderSide(color: Color(0xFF0F766E)),
+                foregroundColor: const Color(0xFFFB923C),
+                side: const BorderSide(color: Color(0xFFC2410C)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
@@ -612,7 +612,7 @@ class _ConnectScreenState extends State<ConnectScreen>
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF020617).withValues(alpha: 0.55),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        border: Border.all(color: const Color(0xFF262E3A)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Theme(
@@ -621,7 +621,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         child: const ExpansionTile(
           tilePadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 14),
-          iconColor: Color(0xFF2DD4BF),
+          iconColor: Color(0xFFFB923C),
           collapsedIconColor: Color(0xFF94A3B8),
           title: Text(
             'Masla aa raha hai? Ye check karo',
@@ -653,7 +653,7 @@ class _ConnectScreenState extends State<ConnectScreen>
             ),
             _HelpPoint(
               'Connection bar bar kat-ta hai? Phone Settings → Apps → '
-              'GTA Remote → Battery → Unrestricted kar do.',
+              'AB GTA → Battery → Unrestricted kar do.',
             ),
           ],
         ),
@@ -675,7 +675,7 @@ class _HelpPoint extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('•  ', style: TextStyle(color: Color(0xFF2DD4BF))),
+          const Text('•  ', style: TextStyle(color: Color(0xFFFB923C))),
           Expanded(
             child: Text(
               text,
@@ -717,8 +717,8 @@ class _GameCard extends StatelessWidget {
             color: const Color(0xFF020617).withValues(alpha: 0.55),
             border: Border.all(
               color: selected
-                  ? const Color(0xFF2DD4BF)
-                  : const Color(0xFF1E293B),
+                  ? const Color(0xFFF97316)
+                  : const Color(0xFF262E3A),
               width: selected ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(14),
@@ -730,7 +730,7 @@ class _GameCard extends StatelessWidget {
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
                 color: selected
-                    ? const Color(0xFF2DD4BF)
+                    ? const Color(0xFFF97316)
                     : const Color(0xFF64748B),
                 size: 21,
               ),
@@ -760,7 +760,7 @@ class _GameCard extends StatelessWidget {
               ),
               if (selected)
                 const Icon(Icons.check_circle,
-                    color: Color(0xFF2DD4BF), size: 20),
+                    color: Color(0xFFF97316), size: 20),
             ],
           ),
         ),
@@ -807,8 +807,8 @@ class _DeviceCard extends StatelessWidget {
             color: const Color(0xFF020617).withValues(alpha: 0.55),
             border: Border.all(
               color: selected
-                  ? const Color(0xFF2DD4BF)
-                  : const Color(0xFF1E293B),
+                  ? const Color(0xFFF97316)
+                  : const Color(0xFF262E3A),
               width: selected ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(14),
@@ -851,12 +851,12 @@ class _DeviceCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F766E).withValues(alpha: 0.35),
+                  color: const Color(0xFFEA580C).withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: const Text(
                   'Paired',
-                  style: TextStyle(fontSize: 11.5, color: Color(0xFF5EEAD4)),
+                  style: TextStyle(fontSize: 11.5, color: Color(0xFFFDBA74)),
                 ),
               ),
             ],
@@ -901,7 +901,7 @@ class _PermissionCard extends StatelessWidget {
           FilledButton(
             onPressed: onAllow,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF0F766E),
+              backgroundColor: const Color(0xFFEA580C),
             ),
             child: const Text('Allow Bluetooth'),
           ),
@@ -922,7 +922,7 @@ class _InfoCard extends StatelessWidget {
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: const Color(0xFF020617).withValues(alpha: 0.55),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        border: Border.all(color: const Color(0xFF262E3A)),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
@@ -951,7 +951,7 @@ class _GuideStep extends StatelessWidget {
             height: 21,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              color: Color(0xFF0F766E),
+              color: Color(0xFFEA580C),
             ),
             child: Center(
               child: Text(

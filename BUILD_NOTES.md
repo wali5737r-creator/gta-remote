@@ -193,3 +193,116 @@ queued if the HID profile proxy has not arrived yet.
   unregisters the HID app by design; on return the controller shows the
   disconnected overlay with Reconnect (FR-29) — behaviour implemented, but
   the exact callback ordering on realme UI is unverified.
+
+---
+
+## v2 — Racing Cockpit theme, pedal swap, TILT mode, rename (2026-11-19)
+
+Owner-approved changes on top of v1 + QA_REPORT + IMPROVEMENTS. None of
+the earlier fixes regressed: early HID registration on connect-screen
+load, no unregister on pause, registration waiter list, class-aware
+auto-refreshing device list, fast-fail connect wait, permanently-denied
+Settings path, wheel as raw `Listener`, steering hysteresis, text-scale
+clamp 0.85–1.15 and compact scaling are all untouched in behaviour —
+this round changed colours, pedal order, and added one input source.
+
+### Theme — "Racing Cockpit" (Design 1)
+
+Applied across connect screen, controller and settings, from
+`mockup/design-options.html` `.v1` values:
+
+- Background: near-black carbon — base `#0B0E13`, subtle ±45° diagonal
+  weave painted by a `CustomPaint` inside a `RepaintBoundary`
+  (`premium_background.dart`, no image assets), red glow bottom-right,
+  faint orange glow top-left.
+- Accent orange `#F97316`/`#EA580C`/`#FB923C`; secondary red
+  `#EF4444`/`#B91C1C`; gunmetal surfaces `#171B21`/`#1F2937`, card
+  borders `#262E3A`.
+- Wheel repainted: gunmetal rim sweep (`#3A3F47`/`#14171C`/`#0A0C0F`/
+  `#262B33`), spokes `#4B5563 → #1F2937 → #374151`, **orange dashed
+  stitching**, **red top stripe** (`#EF4444 → #991B1B`, also the bezel
+  marker), hub `#4B5563 → #111827 → #030712` with orange border and
+  **orange hub ring**.
+- Pedals are now gunmetal metal pads (gradient `#6B7280 → #374151 →
+  #1F2937 → #4B5563`) with **vertical** grip stripes; arm `#9CA3AF →
+  #4B5563`. Accent semantics unchanged: RACE label/border green,
+  BRAKE red.
+- ENTER/EXIT CAR = orange gradient, HANDBRAKE = red gradient,
+  JUMP = gunmetal with orange border, RUN keeps its amber (cockpit
+  warning-light) identity, joystick knob is now orange.
+- CONNECT button, selection accents, chips, slider, guide steps —
+  all orange; Material seed colour is orange, scaffold `#0B0E13`.
+
+### Pedal order (final)
+
+Driving (both steering sub-modes): **BRAKE first (left, wide+short
+pad), RACE second (right, tall+narrow pad)** — this replaces the v1
+"RACE first" revision. Pedal widgets are shared helpers in the
+controller (`_brakePedal` / `_racePedal` / `_handbrakeButton`), so the
+order cannot drift between sub-modes.
+
+### TILT steering mode (new)
+
+- The driving top bar gains a **STEERING | TILT** segmented switch
+  (`widgets/steer_mode_switch.dart`, English labels per the approved
+  mockup, orange active segment). It renders **only in driving mode**.
+  The choice persists via `SettingsService.tiltSteering`
+  (shared_preferences key `tilt_steering`) and is restored next
+  session. No new Settings-screen entries.
+- STEERING sub-mode: the existing touch wheel (unchanged behaviour).
+- TILT sub-mode: **no wheel and no gauge** — BRAKE pedal bottom-left
+  where the wheel was, RACE bottom-right, EXIT CAR + HANDBRAKE above
+  RACE in the same relative spot as steering mode. Flip-controls
+  mirrors both sides. The centre angle readout is hidden in TILT.
+- Input: `sensors_plus` **^7.0.0**, `accelerometerEventStream()`.
+  The steer angle is the phone's in-plane rotation of the gravity
+  vector, `atan2(gy, gx)`, measured **relative to a baseline captured
+  when tilt starts** (entering TILT, entering Driving in TILT,
+  reconnect, or resume). Delta = current − baseline (the
+  accelerometer reports the up vector, whose device-frame angle
+  increases under clockwise rotation, so this yields
+  clockwise-positive = steer-right in both landscape orientations —
+  corrected in the v2 review, see IMPROVEMENTS_V2.md; the original
+  build derivation had the sign inverted). A light low-pass
+  (α = 0.25) kills hand jitter; samples with in-plane magnitude
+  < 2.5 m/s² (phone nearly flat) are ignored rather than guessed.
+- Thresholds mirror the wheel's hysteresis: **engage beyond 12°,
+  release below 8°**, direct left↔right crossings switch immediately.
+  Tilt feeds the key-source union as source `'tilt'` with the active
+  profile's steer-left/steer-right keys (A/D in all profiles).
+- Lifecycle: the subscription runs **only** while driving + TILT.
+  It is cancelled and tilt keys released on switching to STEERING,
+  switching on-foot, disconnect (HID state listener), app
+  pause/inactive, and screen dispose. On resume/reconnect it restarts
+  with a fresh baseline. A sensor-stream error stops tilt silently —
+  pedals and buttons keep working.
+- Not device-verified (no device here): the sign convention on the
+  real phone in the user's usual landscape side, and the 12°/8°
+  feel. If steering comes out inverted on hardware, the one-line fix
+  is the sign of `delta` in `_onTiltEvent`.
+
+### Rename — "AB GTA"
+
+App label (manifest), MaterialApp title, connect-screen header,
+permission/help strings, and the Bluetooth SDP name/description/
+provider in `HidKeyboardManager.kt` now say **AB GTA**. The Android
+package id (`com.muhammad.gtaremote`) and Dart package name are
+unchanged, so this build installs as an update over v1. (Windows may
+show the old name for the existing bond until the device is removed
+and re-paired — same Remove-device step as before.)
+
+### App icon
+
+From the owner's logo (`imagine_media/…ab-gta-logo…webp`, 1600²):
+centre-cropped to 90%, the remaining white corner triangles (outside
+the logo's rounded square) flood-filled with near-black carbon from
+the corners only, then written as `ic_launcher.png` +
+`ic_launcher_round.png` at 48/72/96/144/192 px into
+`res/mipmap-mdpi … mipmap-xxxhdpi`. The project had **no**
+`mipmap-anydpi-v26` adaptive-icon XML (in fact no `res/` at all — it
+came from `flutter create` in CI), so nothing had to be removed; the
+new PNGs are the only launcher icons. **CI note:** the workflow must
+preserve these `res/mipmap-*` folders (handled separately); if it
+ever replaces `res/` wholesale instead of merging, the
+`flutter create` styles (`@style/NormalTheme`) must still come from
+the generated tree.

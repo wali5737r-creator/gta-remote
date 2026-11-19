@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body { background:#04060B; color:#E5E7EB; width:1560px; padding:38px 30px 34px; }
+  h1 { text-align:center; font-size:32px; font-weight:300; letter-spacing:6px; color:#F8FAFC; }
+  h1 b { font-weight:800; color:#FB923C; }
+  .sub { text-align:center; color:#7C8DA6; font-size:14px; margin-top:8px; letter-spacing:2.5px; }
+  .row { display:flex; gap:36px; justify-content:center; margin-top:32px; }
+  .col { text-align:center; }
+  .cap { margin-top:14px; font-size:18px; font-weight:800; letter-spacing:3px; color:#fff; }
+  .cap b { color:#FB923C; }
+  .cap small { display:block; color:#8CA0B8; font-weight:400; font-size:14px; letter-spacing:.5px; margin-top:4px; }
+
+  .phone { position:relative; width:724px; height:392px; border-radius:40px; overflow:hidden; text-align:left;
+           border:1px solid rgba(251,146,60,.22); box-shadow:0 0 0 5px #01030A, 0 26px 60px rgba(0,0,0,.6);
+           background:
+             radial-gradient(420px 280px at 85% 95%, rgba(239,68,68,.12), transparent 60%),
+             repeating-linear-gradient(45deg, #12161D 0 7px, #0C0F14 7px 14px),
+             repeating-linear-gradient(-45deg, #10141B 0 7px, #0A0D11 7px 14px), #0B0E13; }
+  .notch { position:absolute; left:50%; top:0; transform:translateX(-50%); width:150px; height:19px; background:#01030A; border-radius:0 0 14px 14px; z-index:5; }
+  .topbar { position:absolute; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between; padding:15px 18px 0; z-index:4; }
+  .glass { background:rgba(8,10,14,.7); border:1px solid rgba(251,146,60,.35); color:#CBD5E1; }
+  .status { display:flex; align-items:center; gap:9px; padding:8px 14px; border-radius:999px; font-size:13.5px; letter-spacing:.6px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#34D399; box-shadow:0 0 10px #34D399; }
+  .pill { padding:8px 14px; border-radius:999px; font-size:12px; font-weight:700; letter-spacing:2.5px; color:#FDBA74; }
+  .seg { display:flex; border-radius:999px; overflow:hidden; border:1px solid rgba(251,146,60,.45); background:rgba(8,10,14,.7); }
+  .seg div { padding:8px 18px; font-size:12.5px; font-weight:800; letter-spacing:2px; color:#9FB0C3; }
+  .seg .on { background:linear-gradient(180deg,#F97316,#C2410C); color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.35); }
+
+  /* wheel (steering mode) */
+  .wheelwrap { position:absolute; left:38px; bottom:32px; width:252px; height:252px; z-index:2; }
+  .wheel { position:absolute; inset:0; border-radius:50%; transform:rotate(-24deg);
+           background:conic-gradient(from 205deg,#3A3F47,#14171C 26%,#0A0C0F 52%,#262B33 78%,#3A3F47);
+           box-shadow:0 22px 44px rgba(0,0,0,.7), inset 0 3px 5px rgba(255,255,255,.15), inset 0 -10px 18px rgba(0,0,0,.7); }
+  .wheelInner { position:absolute; inset:23px; border-radius:50%; overflow:hidden;
+                background:radial-gradient(circle at 50% 42%,#171B21,#08090C 72%); box-shadow:inset 0 10px 26px rgba(0,0,0,.8); }
+  .stitch { position:absolute; inset:6px; border-radius:50%; border:2px dashed rgba(251,146,60,.5); }
+  .stripe { position:absolute; left:50%; top:-1px; width:17px; height:22px; margin-left:-8.5px; z-index:3; border-radius:3px; background:linear-gradient(180deg,#EF4444,#991B1B); }
+  .spokeH { position:absolute; left:50%; top:50%; width:196px; height:38px; margin:-19px 0 0 -98px; border-radius:10px; background:linear-gradient(180deg,#4B5563,#1F2937 55%,#374151); box-shadow:0 5px 12px rgba(0,0,0,.6); }
+  .spokeB { position:absolute; left:50%; top:50%; width:38px; height:112px; margin:8px 0 0 -19px; border-radius:10px; background:linear-gradient(90deg,#4B5563,#1F2937 55%,#374151); box-shadow:0 5px 12px rgba(0,0,0,.6); }
+  .hub { position:absolute; left:50%; top:50%; width:98px; height:98px; margin:-49px 0 0 -49px; border-radius:50%; z-index:2; display:flex; align-items:center; justify-content:center;
+         background:radial-gradient(circle at 42% 32%,#4B5563,#111827 60%,#030712); border:2px solid rgba(251,146,60,.4); box-shadow:0 10px 22px rgba(0,0,0,.65); }
+  .hubring { width:46px; height:46px; border-radius:50%; border:3px solid #F97316; box-shadow:0 0 14px rgba(249,115,22,.5); background:radial-gradient(circle at 42% 34%,#374151,#0B0F16); }
+
+  /* tilt gauge (tilt mode) */
+  .tiltzone { position:absolute; left:38px; bottom:32px; width:330px; height:238px; z-index:2; border-radius:26px;
+              background:rgba(8,10,14,.55); border:1px solid rgba(251,146,60,.28); overflow:hidden; }
+  .tiltzone .chev { position:absolute; top:50%; transform:translateY(-50%); font-size:44px; font-weight:300; color:#FB923C; opacity:.85; }
+  .tiltzone .chev.l { left:14px; } .tiltzone .chev.r { right:14px; }
+  .horizonWrap { position:absolute; left:50%; top:44%; width:250px; height:250px; margin:-125px 0 0 -125px; transform:rotate(16deg); }
+  .horizon { position:absolute; left:0; right:0; top:50%; height:5px; margin-top:-2.5px; border-radius:3px;
+             background:linear-gradient(90deg, transparent, #FB923C 18%, #FDBA74 50%, #FB923C 82%, transparent); box-shadow:0 0 16px rgba(249,115,22,.55); }
+  .bubble { position:absolute; left:50%; top:44%; width:30px; height:30px; margin:-15px 0 0 26px; border-radius:50%;
+            background:radial-gradient(circle at 38% 30%,#FDE68A,#F59E0B 60%,#92400E); border:2px solid rgba(255,255,255,.5); box-shadow:0 0 18px rgba(245,158,11,.6); z-index:2; }
+  .centretick { position:absolute; left:50%; top:14px; width:3px; height:16px; margin-left:-1.5px; background:rgba(255,255,255,.5); border-radius:2px; }
+  .tiltdeg { position:absolute; left:0; right:0; bottom:34px; text-align:center; font-size:30px; font-weight:800; color:#fff; letter-spacing:1px; }
+  .tiltdeg span { color:#FB923C; }
+  .tiltlabel { position:absolute; left:0; right:0; bottom:12px; text-align:center; font-size:11.5px; letter-spacing:3.5px; color:#9FB0C3; font-weight:700; }
+
+  /* pedals — BRAKE first (left), RACE second (right) */
+  .pedals { position:absolute; right:38px; bottom:22px; display:flex; align-items:flex-end; gap:24px; z-index:2; }
+  .pedal { display:flex; flex-direction:column; align-items:center; }
+  .arm { width:12px; height:38px; border-radius:5px; transform:rotate(7deg); transform-origin:bottom center; margin-bottom:-4px; background:linear-gradient(90deg,#9CA3AF,#4B5563); }
+  .pad { position:relative; border-radius:11px; overflow:hidden; border:1px solid rgba(255,255,255,.28);
+         background:linear-gradient(155deg,#6B7280,#374151 40%,#1F2937 75%,#4B5563); box-shadow:0 16px 30px rgba(0,0,0,.65); }
+  .pad:after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(90deg, rgba(0,0,0,.55) 0 7px, transparent 7px 15px); }
+  .brakepad { width:112px; height:94px; }
+  .racepad { width:74px; height:150px; }
+  .plabel { margin-top:10px; font-size:13.5px; font-weight:700; letter-spacing:4.5px; font-style:italic; }
+  .topbtns { position:absolute; right:32px; bottom:242px; display:flex; gap:15px; z-index:3; }
+  .rbtn { width:70px; height:70px; border-radius:50%; color:#fff; font-weight:800; display:flex; align-items:center; justify-content:center; text-align:center; line-height:1.2; font-size:12.5px; letter-spacing:.6px; }
+  .car { background:radial-gradient(circle at 38% 30%,#FB923C,#EA580C 58%,#7C2D12); border:1px solid rgba(255,255,255,.3); box-shadow:0 12px 26px rgba(234,88,12,.45); }
+  .hand { background:radial-gradient(circle at 38% 30%,#EF4444,#B91C1C 58%,#450A0A); border:1px solid rgba(255,255,255,.3); box-shadow:0 12px 26px rgba(185,28,28,.45); font-size:11px; }
+</style>
+</head>
+<body>
+  <h1>AB <b>GTA</b> — DESIGN 1 • DO STEERING MODE</h1>
+  <div class="sub">BRAKE PEHLE • RACE DOOSRA &nbsp;•&nbsp; UPAR WALE SWITCH SE MODE BADLO</div>
+
+  <div class="row">
+    <div class="col">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="topbar">
+          <div class="status glass"><div class="dot"></div>Connected • GTA V</div>
+          <div class="seg"><div class="on">STEERING</div><div>TILT</div></div>
+          <div class="pill glass">DRIVING</div>
+        </div>
+        <div class="wheelwrap"><div class="wheel"><div class="stripe"></div>
+          <div class="wheelInner"><div class="stitch"></div><div class="spokeH"></div><div class="spokeB"></div>
+          <div class="hub"><div class="hubring"></div></div></div>
+        </div></div>
+        <div class="topbtns"><div class="rbtn car">EXIT<br>CAR</div><div class="rbtn hand">HAND<br>BRAKE</div></div>
+        <div class="pedals">
+          <div class="pedal"><div class="arm"></div><div class="pad brakepad"></div><div class="plabel" style="color:#F87171;">BRAKE</div></div>
+          <div class="pedal"><div class="arm"></div><div class="pad racepad"></div><div class="plabel" style="color:#4ADE80;">RACE</div></div>
+        </div>
+      </div>
+      <div class="cap">MODE <b>1</b> — STEERING<small>Ungli se steering ghumao — jesa ab hai</small></div>
+    </div>
+
+    <div class="col">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="topbar">
+          <div class="status glass"><div class="dot"></div>Connected • GTA V</div>
+          <div class="seg"><div>STEERING</div><div class="on">TILT</div></div>
+          <div class="pill glass">DRIVING</div>
+        </div>
+        <div class="pedal" style="position:absolute; left:56px; bottom:22px; z-index:2;">
+          <div class="arm"></div><div class="pad brakepad"></div><div class="plabel" style="color:#F87171;">BRAKE</div>
+        </div>
+        <div class="topbtns"><div class="rbtn car">EXIT<br>CAR</div><div class="rbtn hand">HAND<br>BRAKE</div></div>
+        <div class="pedals">
+          <div class="pedal"><div class="arm"></div><div class="pad racepad"></div><div class="plabel" style="color:#4ADE80;">RACE</div></div>
+        </div>
+      </div>
+      <div class="cap">MODE <b>2</b> — TILT (NAYA)<small>Steering ki jagah sirf BRAKE — dusri side sirf RACE, aur kuch nahi • phone hilane se gaari muregi</small></div>
+    </div>
+  </div>
+</body>
+</html>

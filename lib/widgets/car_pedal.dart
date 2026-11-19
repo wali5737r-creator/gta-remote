@@ -3,11 +3,12 @@ import 'package:flutter/services.dart';
 
 import 'hold_surface.dart';
 
-/// Asli car jaisa pedal — metal arm + rubber grip pad.
+/// Asli car jaisa pedal — metal arm + gunmetal pad (Racing Cockpit).
 ///
-/// Muhammad ki revised design: RACE pehla (left), BRAKE uske baad (right).
-/// RACE = lamba tang pad, BRAKE = chaura chhota pad. Dono par halki
-/// green/red pehchan rehti hai taake foran samajh aye konsa konsa hai.
+/// Muhammad ki final design (v2): BRAKE pehla (left), RACE uske baad
+/// (right). RACE = lamba tang pad, BRAKE = chaura chhota pad. Dono par
+/// halki green/red pehchan (border + glow + label) rehti hai taake
+/// foran samajh aye konsa konsa hai.
 /// Dabane par pad neeche jata hai aur glow tez ho jata hai (FR-33).
 class CarPedal extends StatelessWidget {
   const CarPedal({
@@ -57,14 +58,14 @@ class CarPedal extends StatelessWidget {
                   gradient: const LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
-                    colors: [Color(0xFF6B7280), Color(0xFF374151)],
+                    colors: [Color(0xFF9CA3AF), Color(0xFF4B5563)],
                   ),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ),
             const SizedBox(height: 1),
-            // Rubber pad — grip ridges ke saath.
+            // Gunmetal pad — vertical grip dhaariyon ke saath (.v1).
             AnimatedContainer(
               duration: const Duration(milliseconds: 90),
               curve: Curves.easeOut,
@@ -72,7 +73,17 @@ class CarPedal extends StatelessWidget {
               width: _padWidth,
               height: _padHeight,
               decoration: BoxDecoration(
-                color: const Color(0xFF171E2C),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF6B7280),
+                    Color(0xFF374151),
+                    Color(0xFF1F2937),
+                    Color(0xFF4B5563),
+                  ],
+                  stops: [0.0, 0.4, 0.75, 1.0],
+                ),
                 border: Border.all(
                   color: accent.withValues(alpha: pressed ? 0.95 : 0.5),
                   width: 2,
@@ -123,27 +134,24 @@ class CarPedal extends StatelessWidget {
   }
 }
 
-/// Rubber pad ki grip wali dhaariyan (horizontal ridges).
+/// Metal pad ki grip wali dhaariyan — khari (vertical) gehri lines,
+/// mockup .v1 ke repeating pattern ki tarah. Pad ka gunmetal gradient
+/// neeche se nazar aata rehta hai; ye sirf gehri dhaariyan dalta hai.
 class _GripRidgePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final light = Paint()..color = const Color(0xFF2A3140);
-    final dark = Paint()..color = const Color(0xFF131926);
-    const bandHeight = 8.0;
-    var y = 0.0;
-    var isLight = true;
-    while (y < size.height) {
-      canvas.drawRect(
-        Rect.fromLTWH(0, y, size.width, bandHeight),
-        isLight ? light : dark,
-      );
-      y += bandHeight;
-      isLight = !isLight;
+    final dark = Paint()..color = Colors.black.withValues(alpha: 0.38);
+    const stripeWidth = 7.0;
+    const period = 15.0;
+    var x = 0.0;
+    while (x < size.width) {
+      canvas.drawRect(Rect.fromLTWH(x, 0, stripeWidth, size.height), dark);
+      x += period;
     }
     // Upar wali kinari par halki roshni.
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, 2),
-      Paint()..color = Colors.white.withValues(alpha: 0.13),
+      Paint()..color = Colors.white.withValues(alpha: 0.16),
     );
   }
 

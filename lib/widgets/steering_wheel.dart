@@ -236,7 +236,7 @@ class _SteeringWheelState extends State<SteeringWheel>
 class _MarkerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF2DD4BF);
+    final paint = Paint()..color = const Color(0xFFEF4444);
     final path = Path()
       ..moveTo(size.width / 2, 0)
       ..lineTo(size.width, size.height)
@@ -249,7 +249,8 @@ class _MarkerPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Leather rim + stitching + metal spokes + hub — mockup ke mutabiq.
+/// Leather rim + orange stitching + gunmetal spokes + hub —
+/// Racing Cockpit mockup (.v1) ke mutabiq.
 class _WheelPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -272,23 +273,23 @@ class _WheelPainter extends CustomPainter {
       ..shader = RadialGradient(
         center: const Alignment(-0.2, -0.3),
         radius: 0.9,
-        colors: const [Color(0xFF141D30), Color(0xFF0A0F1C)],
+        colors: const [Color(0xFF171B21), Color(0xFF08090C)],
       ).createShader(Rect.fromCircle(center: centre, radius: radius));
     canvas.drawCircle(centre, rimRadius - rimWidth / 2 + 2, discPaint);
 
     _drawSpokes(canvas, centre, size, rimRadius);
 
-    // Leather rim — sweep gradient se halki chamak.
+    // Leather rim — sweep gradient se halki chamak (gunmetal tones).
     final rimPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = rimWidth
       ..shader = SweepGradient(
         colors: const [
-          Color(0xFF2E3A50),
-          Color(0xFF1D2637),
-          Color(0xFF39465E),
-          Color(0xFF232D42),
-          Color(0xFF2E3A50),
+          Color(0xFF3A3F47),
+          Color(0xFF14171C),
+          Color(0xFF0A0C0F),
+          Color(0xFF262B33),
+          Color(0xFF3A3F47),
         ],
       ).createShader(Rect.fromCircle(center: centre, radius: rimRadius));
     canvas.drawCircle(centre, rimRadius, rimPaint);
@@ -313,7 +314,8 @@ class _WheelPainter extends CustomPainter {
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFF3A465C), Color(0xFF232D42)],
+        colors: [Color(0xFF4B5563), Color(0xFF1F2937), Color(0xFF374151)],
+        stops: [0.0, 0.55, 1.0],
       ).createShader(Rect.fromCircle(center: centre, radius: rimRadius));
 
     // Horizontal spoke (left-right).
@@ -344,7 +346,7 @@ class _WheelPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = const Color(0xFF94A3B8).withValues(alpha: 0.45);
+      ..color = const Color(0xFFFB923C).withValues(alpha: 0.5);
     const dashCount = 64;
     const step = 2 * math.pi / dashCount;
     for (var i = 0; i < dashCount; i++) {
@@ -368,15 +370,23 @@ class _WheelPainter extends CustomPainter {
   ) {
     canvas.save();
     canvas.translate(centre.dx, centre.dy);
+    final stripeRect = Rect.fromCenter(
+      center: Offset(0, -rimRadius),
+      width: size.width * 0.062,
+      height: rimWidth + 3,
+    );
     final stripe = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(0, -rimRadius),
-        width: size.width * 0.062,
-        height: rimWidth + 3,
-      ),
+      stripeRect,
       const Radius.circular(3),
     );
-    canvas.drawRRect(stripe, Paint()..color = const Color(0xFFC0C7D1));
+    // Upar wali nishan-patti — garam red gradient (mockup .v1).
+    final stripePaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFEF4444), Color(0xFF991B1B)],
+      ).createShader(stripeRect);
+    canvas.drawRRect(stripe, stripePaint);
     canvas.restore();
   }
 
@@ -394,7 +404,12 @@ class _WheelPainter extends CustomPainter {
       ..shader = RadialGradient(
         center: const Alignment(-0.35, -0.45),
         radius: 1.0,
-        colors: const [Color(0xFF4A5871), Color(0xFF1B2436)],
+        colors: const [
+          Color(0xFF4B5563),
+          Color(0xFF111827),
+          Color(0xFF030712),
+        ],
+        stops: [0.0, 0.6, 1.0],
       ).createShader(Rect.fromCircle(center: centre, radius: hubRadius));
     canvas.drawCircle(centre, hubRadius, hubPaint);
     canvas.drawCircle(
@@ -402,25 +417,25 @@ class _WheelPainter extends CustomPainter {
       hubRadius,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = const Color(0xFF101827),
-    );
-    // Beech me teal ring (horn pad ka nishan).
-    canvas.drawCircle(
-      centre,
-      size.width * 0.088,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = const Color(0xFF2DD4BF).withValues(alpha: 0.35),
-    );
-    canvas.drawCircle(
-      centre,
-      size.width * 0.088,
-      Paint()
-        ..style = PaintingStyle.stroke
         ..strokeWidth = 2
-        ..color = const Color(0xFF2DD4BF),
+        ..color = const Color(0xFFFB923C).withValues(alpha: 0.4),
+    );
+    // Beech me orange ring (horn pad ka nishan) — halki glow ke saath.
+    canvas.drawCircle(
+      centre,
+      size.width * 0.088,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4
+        ..color = const Color(0xFFF97316).withValues(alpha: 0.35),
+    );
+    canvas.drawCircle(
+      centre,
+      size.width * 0.088,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = const Color(0xFFF97316),
     );
   }
 

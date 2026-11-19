@@ -95,7 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         '${_settings.deadZoneDeg.round()}°',
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF2DD4BF),
+                          color: Color(0xFFF97316),
                         ),
                       ),
                     ],
@@ -105,7 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     min: 0,
                     max: 15,
                     divisions: 15,
-                    activeColor: const Color(0xFF2DD4BF),
+                    activeColor: const Color(0xFFF97316),
                     onChanged: (value) => _settings.setDeadZoneDeg(
                       value.round().toDouble(),
                     ),
@@ -170,7 +170,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'band karke dobara koshish karo — aik waqt me sirf aik '
                       'app Bluetooth keyboard ban sakti hai.'),
                   _HelpLine('Connection bar bar katay to: phone Settings → '
-                      'Apps → GTA Remote → Battery → Unrestricted kar do.'),
+                      'Apps → AB GTA → Battery → Unrestricted kar do.'),
+                  _HelpLine('Driving me upar wale STEERING | TILT switch '
+                      'se steering ka tareeqa badal sakte ho — TILT me '
+                      'phone ko left/right hilane se gari murti hai. '
+                      'Upar wali steering settings (range, sensitivity, '
+                      'dead zone) sirf touch wheel ke liye hain.'),
                   _HelpLine('Sab kuch free hai — koi ads nahi, koi time '
                       'limit nahi, internet ki zaroorat nahi.'),
                 ],
@@ -210,7 +215,7 @@ class _ProfileRadioRow extends StatelessWidget {
                   ? Icons.radio_button_checked
                   : Icons.radio_button_unchecked,
               color: selected
-                  ? const Color(0xFF2DD4BF)
+                  ? const Color(0xFFF97316)
                   : const Color(0xFF64748B),
               size: 21,
             ),
@@ -258,7 +263,7 @@ class _SectionTitle extends StatelessWidget {
           fontSize: 15,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.5,
-          color: Color(0xFF2DD4BF),
+          color: Color(0xFFF97316),
         ),
       ),
     );
@@ -276,7 +281,7 @@ class _Card extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF020617).withValues(alpha: 0.55),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        border: Border.all(color: const Color(0xFF262E3A)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: child,
@@ -322,11 +327,11 @@ class _ChoiceChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFF0F766E)
-              : const Color(0xFF1E293B).withValues(alpha: 0.6),
+              ? const Color(0xFFC2410C)
+              : const Color(0xFF262E3A).withValues(alpha: 0.6),
           border: Border.all(
             color: selected
-                ? const Color(0xFF2DD4BF)
+                ? const Color(0xFFF97316)
                 : const Color(0xFF334155),
           ),
           borderRadius: BorderRadius.circular(999),
@@ -356,7 +361,7 @@ class _HelpLine extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('•  ', style: TextStyle(color: Color(0xFF2DD4BF))),
+          const Text('•  ', style: TextStyle(color: Color(0xFFF97316))),
           Expanded(
             child: Text(
               text,

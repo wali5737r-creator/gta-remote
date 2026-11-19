@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../services/hid_service.dart';
+import 'steer_mode_switch.dart';
 
 /// Controller screen ki top bar (Muhammad ki revised design):
 /// left = connection status pill, right = mode pill.
+/// Driving mode me beech me STEERING | TILT switch bhi aata hai (v2).
 /// Mode pill sirf layout badalta hai — koi key nahi bhejta (FR-20).
 class ControllerTopBar extends StatelessWidget {
   const ControllerTopBar({
@@ -11,6 +13,8 @@ class ControllerTopBar extends StatelessWidget {
     required this.hidState,
     required this.driving,
     required this.onModeSelected,
+    this.tiltMode = false,
+    this.onSteerModeSelected,
   });
 
   final HidState hidState;
@@ -20,6 +24,13 @@ class ControllerTopBar extends StatelessWidget {
 
   /// Mode pill se layout tabdeeli (true = Driving, false = On Foot).
   final ValueChanged<bool> onModeSelected;
+
+  /// STEERING | TILT switch ki haalat — sirf driving me istemal hoti
+  /// hai, aur switch bhi sirf tabhi nazar aata hai.
+  final bool tiltMode;
+
+  /// true = TILT, false = STEERING. Null ho to switch nahi banta.
+  final ValueChanged<bool>? onSteerModeSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +44,13 @@ class ControllerTopBar extends StatelessWidget {
             child: _StatusPill(hidState: hidState),
           ),
         ),
+        if (driving && onSteerModeSelected != null) ...[
+          const SizedBox(width: 10),
+          SteerModeSwitch(
+            tiltMode: tiltMode,
+            onSelected: onSteerModeSelected!,
+          ),
+        ],
         const SizedBox(width: 10),
         _ModePill(driving: driving, onModeSelected: onModeSelected),
       ],
@@ -60,8 +78,10 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF020617).withValues(alpha: 0.65),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        color: const Color(0xFF080A0E).withValues(alpha: 0.7),
+        border: Border.all(
+          color: const Color(0xFFFB923C).withValues(alpha: 0.35),
+        ),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -114,8 +134,10 @@ class _ModePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFF020617).withValues(alpha: 0.65),
-        border: Border.all(color: const Color(0xFF334155)),
+        color: const Color(0xFF080A0E).withValues(alpha: 0.7),
+        border: Border.all(
+          color: const Color(0xFFFB923C).withValues(alpha: 0.35),
+        ),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -144,7 +166,7 @@ class _ModePill extends StatelessWidget {
     required bool active,
     required VoidCallback onTap,
   }) {
-    final color = active ? const Color(0xFFFACC15) : const Color(0xFF94A3B8);
+    final color = active ? const Color(0xFFFDBA74) : const Color(0xFF94A3B8);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(

@@ -36,6 +36,7 @@ class SettingsService extends ChangeNotifier {
   static const _keyDeadZone = 'steering_dead_zone_deg';
   static const _keySensitivity = 'steering_sensitivity';
   static const _keyFlipControls = 'flip_controls';
+  static const _keyTiltSteering = 'tilt_steering';
   static const _keyDeviceAddress = 'last_device_address';
   static const _keyDeviceName = 'last_device_name';
 
@@ -60,6 +61,12 @@ class SettingsService extends ChangeNotifier {
   bool _flipControls = false;
   bool get flipControls => _flipControls;
 
+  /// Driving me steering ka tareeqa: false = touch wheel (STEERING),
+  /// true = phone hilana (TILT). Controller ke switch se badalta hai
+  /// aur agli dafa ke liye yaad rehta hai (v2).
+  bool _tiltSteering = false;
+  bool get tiltSteering => _tiltSteering;
+
   String? _lastDeviceAddress;
   String? get lastDeviceAddress => _lastDeviceAddress;
 
@@ -75,6 +82,7 @@ class SettingsService extends ChangeNotifier {
     _sensitivity =
         SteeringSensitivity.byName(prefs.getString(_keySensitivity));
     _flipControls = prefs.getBool(_keyFlipControls) ?? false;
+    _tiltSteering = prefs.getBool(_keyTiltSteering) ?? false;
     _lastDeviceAddress = prefs.getString(_keyDeviceAddress);
     _lastDeviceName = prefs.getString(_keyDeviceName);
     _loaded = true;
@@ -114,6 +122,13 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyFlipControls, value);
+  }
+
+  Future<void> setTiltSteering(bool value) async {
+    _tiltSteering = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyTiltSteering, value);
   }
 
   Future<void> setLastDevice(String address, String name) async {

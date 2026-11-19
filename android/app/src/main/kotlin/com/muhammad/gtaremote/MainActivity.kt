@@ -4,7 +4,7 @@ import android.content.Intent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 
-/// GTA Remote ki MainActivity.
+/// AB GTA ki MainActivity.
 ///
 /// Saara Bluetooth HID kaam [HidKeyboardManager] karta hai; ye activity
 /// sirf use banati hai aur Android ke lifecycle/result callbacks use

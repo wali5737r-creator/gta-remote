@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/game_key.dart';
@@ -22,11 +24,14 @@ import 'settings_screen.dart';
 /// tamam sources ka union hi HID report banta hai. Is design se koi key
 /// atak nahi sakti: source saaf = key gayi.
 ///
-/// Layout (Muhammad ki revised design):
-/// - Top bar: sirf status pill (left) + mode pill (right).
+/// Layout (Muhammad ki design, v2 — Racing Cockpit):
+/// - Top bar: status pill (left) + mode pill (right); driving me
+///   beech me STEERING | TILT switch.
 /// - ENTER/EXIT CAR gol button pedals ke cluster ke UPAR, HANDBRAKE ke
 ///   saath — dono modes me bilkul wahi jagah.
-/// - Pedals: RACE pehla (left), BRAKE baad me (right).
+/// - Pedals: BRAKE pehla (left), RACE baad me (right).
+/// - TILT mode me wheel nahi hota: BRAKE neeche-left, RACE
+///   neeche-right, aur steering phone hilane se hoti hai.
 /// - Wheel ke neeche koi caption text nahi.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
@@ -52,6 +57,52 @@ class _ControllerScreenState extends State<ControllerScreen>
   bool _runOn = false;
   bool _fTapInProgress = false;
 
+  /// Steering ka tareeqa (sirf driving me): false = touch wheel
+  /// (STEERING), true = phone hilana (TILT). Settings se restore
+  /// hota hai aur switch se badalte hi wahan save ho jata hai.
+  bool _tiltMode = false;
+
+  // --- Tilt steering (v2) ------------------------------------------------
+
+  StreamSubscription<AccelerometerEvent>? _tiltSubscription;
+
+  /// Baseline: tilt shuru hote waqt gravity ka in-plane angle
+  /// (degrees) — pehli readings ke ausat se banta hai (neeche
+  /// dekho). Saari naap is ke nisbat hoti hai — phone jis haalat
+  /// me pakra hai, wahi "seedha" hai.
+  double? _tiltBaselineDeg;
+
+  /// Baseline ginne ke liye pehli readings ka majmua (vector sum) —
+  /// aik akeli reading par baseline nahi banta.
+  double _tiltBaseSumX = 0;
+  double _tiltBaseSumY = 0;
+  DateTime? _tiltBaseStart;
+
+  /// Phone flat hone ka waqt — itni dair flat rahe to lagi hui
+  /// tilt key chhor dete hain (koi key atak nahi sakti).
+  DateTime? _tiltFlatSince;
+
+  /// Low-pass smoothing ke baad ki gravity (phone ke x/y axes par).
+  double _tiltSmoothX = 0;
+  double _tiltSmoothY = 0;
+  bool _tiltHasSmooth = false;
+
+  /// Tilt se is waqt lagi hui steering key (source 'tilt').
+  GameKey? _tiltKey;
+
+  /// Itne degrees se zyada jhukao par key lagti hai…
+  static const double _tiltEngageDeg = 12;
+
+  /// …aur itne se kam par chhut-ti hai (hysteresis — wheel ki tarah,
+  /// taake hadd par key jhatkay na khaye).
+  static const double _tiltReleaseDeg = 8;
+
+  /// Baseline itni dair ki readings ka ausat hota hai.
+  static const Duration _tiltBaselineWindow = Duration(milliseconds: 300);
+
+  /// Phone itni dair flat rahe to lagi hui tilt key chhut jati hai.
+  static const Duration _tiltFlatReleaseDelay = Duration(milliseconds: 250);
+
   /// Steering angle sirf readout ke liye hai — ValueNotifier is liye
   /// ke har degree ki tabdeeli par poori controller screen dobara na
   /// bane (steering ke doran ye second me darjanon dafa badalta hai).
@@ -76,19 +127,22 @@ class _ControllerScreenState extends State<ControllerScreen>
       setState(() => _hidState = state);
       if (state.isConnected) {
         WakelockPlus.enable();
+        _updateTiltSubscription();
       } else {
         WakelockPlus.disable();
+        _stopTilt();
         _clearAllKeys();
       }
     });
     if (_connected) WakelockPlus.enable();
     _settings.addListener(_onSettingsChanged);
+    _tiltMode = _settings.tiltSteering;
     // Pehle frame ke baad maujooda mode ka banner aik dafa dikhao —
     // user ko foran tasdeeq mil jati hai ke woh controller par hai
     // aur kis mode me hai (connect kamyab hone ka sab se wazeh ishara).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _connected) {
-        _showBanner(_driving ? '🚗  DRIVING' : '🚶  ON FOOT');
+        _showBanner(_modeBannerText);
       }
     });
   }
@@ -96,6 +150,7 @@ class _ControllerScreenState extends State<ControllerScreen>
   @override
   void dispose() {
     _bannerTimer?.cancel();
+    _stopTilt();
     _wheelAngle.dispose();
     _settings.removeListener(_onSettingsChanged);
     _hidSubscription?.cancel();
@@ -117,11 +172,17 @@ class _ControllerScreenState extends State<ControllerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // App background me jaye to saari keys chhor do (FR-29).
+    // App background me jaye to saari keys chhor do (FR-29) aur
+    // tilt sensor bhi band kar do.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
+      _stopTilt();
       _clearAllKeys();
       _hid.releaseAllKeys();
+    } else if (state == AppLifecycleState.resumed) {
+      // Wapas aane par tilt (agar on tha) dobara shuru — baseline
+      // taaza banta hai, purani simt par key nahi atki rehti.
+      _updateTiltSubscription();
     }
   }
 
@@ -168,9 +229,17 @@ class _ControllerScreenState extends State<ControllerScreen>
     if (_driving == driving) return;
     _clearAllKeys();
     setState(() => _driving = driving);
-    _showBanner(driving ? '🚗  DRIVING' : '🚶  ON FOOT');
+    _updateTiltSubscription();
+    _showBanner(_modeBannerText);
     _doubleHaptic();
   }
+
+  /// Mode banner ka text. TILT ki purani pasand restore hui ho to
+  /// driving banner me us ka zikr bhi — warna user wheel dhoondta
+  /// rahega ke gayab kahan gaya.
+  String get _modeBannerText => _driving
+      ? (_tiltMode ? '🚗  DRIVING • TILT' : '🚗  DRIVING')
+      : '🚶  ON FOOT';
 
   /// Mode banner ~650ms ke liye dikhao (FR-21).
   void _showBanner(String text) {
@@ -185,6 +254,198 @@ class _ControllerScreenState extends State<ControllerScreen>
     await HapticFeedback.lightImpact();
     await Future<void>.delayed(const Duration(milliseconds: 90));
     await HapticFeedback.lightImpact();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tilt steering (v2) — phone hilane se steering
+  // ---------------------------------------------------------------------------
+
+  /// STEERING | TILT switch: pehle saari keys chhoro, phir tareeqa
+  /// badlo aur choice yaad kar lo (agli dafa bhi yahi milega).
+  void _switchSteerMode(bool tilt) {
+    if (_tiltMode == tilt) return;
+    _clearAllKeys();
+    setState(() => _tiltMode = tilt);
+    unawaited(_settings.setTiltSteering(tilt));
+    _updateTiltSubscription();
+    // Wheel achanak gayab/maujood hone par user ko foran pata chale
+    // ke hua kya hai — khaaskar TILT par, jahan steering ab ungli
+    // se nahi, phone hilane se hogi.
+    _showBanner(
+      tilt ? '📱  TILT — phone hilao' : '🎡  STEERING — ungli se ghumao',
+    );
+  }
+
+  /// Tilt sensor sirf tab chale jab driving + TILT + connection
+  /// teeno on hon — paidal mode, STEERING mode, disconnect aur
+  /// background me band. Connection ki shart is liye bhi ke
+  /// disconnect ke doran chalta sensor reconnect wali pehli
+  /// report me purani tilt key ghusa sakta tha; ab reconnect par
+  /// sensor taaza baseline ke saath hi chalega.
+  void _updateTiltSubscription() {
+    if (_driving && _tiltMode && _connected) {
+      _startTilt();
+    } else {
+      _stopTilt();
+    }
+  }
+
+  void _startTilt() {
+    if (_tiltSubscription != null) return;
+    // Baseline aur smoothing har shuruaat par taaza — phone jis
+    // haalat me pakra hai, wahi "seedha" hai.
+    _resetTiltBaseline();
+    _tiltHasSmooth = false;
+    _tiltKey = null;
+    // Game wali raftar (20ms) lazmi mango — default raftar 200ms
+    // hai; us par low-pass ke saath steering ~0.7s late ho jati,
+    // khel bilkul bekaar.
+    _tiltSubscription = accelerometerEventStream(
+      samplingPeriod: SensorInterval.gameInterval,
+    ).listen(
+      _onTiltEvent,
+      onError: (Object _) {
+        // Sensor na mile / stream band ho jaye to TILT khamoshi se
+        // murda nahi rehta: is session ke liye STEERING par wapas
+        // aa jao aur user ko bata bhi do — switch jhooti haalat
+        // nahi dikhata. Save ki hui pasand nahi badalte; agli dafa
+        // TILT dobara azma sakta hai. Pedals/buttons chalte rahenge.
+        _stopTilt();
+        if (mounted && _tiltMode) {
+          _clearAllKeys();
+          setState(() => _tiltMode = false);
+          _showBanner('⚠ Tilt sensor nahi mila — STEERING on hai');
+        }
+      },
+    );
+  }
+
+  /// Baseline ginna dobara shuru se — purana majmua saaf.
+  void _resetTiltBaseline() {
+    _tiltBaselineDeg = null;
+    _tiltBaseSumX = 0;
+    _tiltBaseSumY = 0;
+    _tiltBaseStart = null;
+    _tiltFlatSince = null;
+  }
+
+  void _stopTilt() {
+    _tiltSubscription?.cancel();
+    _tiltSubscription = null;
+    _resetTiltBaseline();
+    if (_tiltKey != null) {
+      _tiltKey = null;
+      _setSourceKeys('tilt', const {});
+    }
+  }
+
+  void _onTiltEvent(AccelerometerEvent event) {
+    // Halki low-pass smoothing — haath ki larazish (jitter) khatam.
+    if (!_tiltHasSmooth) {
+      _tiltSmoothX = event.x;
+      _tiltSmoothY = event.y;
+      _tiltHasSmooth = true;
+    } else {
+      const alpha = 0.25;
+      _tiltSmoothX += alpha * (event.x - _tiltSmoothX);
+      _tiltSmoothY += alpha * (event.y - _tiltSmoothY);
+    }
+    final magnitude = math.sqrt(
+      _tiltSmoothX * _tiltSmoothX + _tiltSmoothY * _tiltSmoothY,
+    );
+    if (magnitude < 2.5) {
+      // Phone bohat flat para hai — in-plane angle bharosay ke
+      // qabil nahi. Aik jhatke par key rehne do, lekin flat para
+      // rahe to lagi hui key chhor do — is app ka asool hai ke
+      // koi key kabhi atakti nahi (phone meiz par rakh kar chale
+      // jao to gari gol gol nahi ghumegi).
+      _tiltFlatSince ??= DateTime.now();
+      if (_tiltKey != null &&
+          DateTime.now().difference(_tiltFlatSince!) >=
+              _tiltFlatReleaseDelay) {
+        _tiltKey = null;
+        _setSourceKeys('tilt', const {});
+      }
+      return;
+    }
+    _tiltFlatSince = null;
+    final angleDeg = math.atan2(_tiltSmoothY, _tiltSmoothX) * 180 / math.pi;
+    if (_tiltBaselineDeg == null) {
+      // Baseline pehli ~300ms ki readings ka AUSAT hai, aik akeli
+      // reading nahi — switch dabane ki jhatka ya haath ki larazish
+      // baseline ko aik taraf nahi dhakelti (warna seedha chalti
+      // gari bhi halki si aik taraf kheenchti rehti).
+      _tiltBaseStart ??= DateTime.now();
+      _tiltBaseSumX += _tiltSmoothX;
+      _tiltBaseSumY += _tiltSmoothY;
+      if (DateTime.now().difference(_tiltBaseStart!) >=
+          _tiltBaselineWindow) {
+        _tiltBaselineDeg =
+            math.atan2(_tiltBaseSumY, _tiltBaseSumX) * 180 / math.pi;
+      }
+      return;
+    }
+    // Accelerometer asal me "up" vector report karta hai (gravity
+    // ke bar-aks simt). Phone ko clockwise ghumane (steer right)
+    // se is vector ka device-frame angle UTNA HI BADHTA hai —
+    // dono landscape simton me. Worked example (landscape-left):
+    // seedha pakadne par angle 0°; 20° right ghumao par +20°.
+    // Is liye delta = current − baseline hi clockwise-positive
+    // hai. (v2 ka pehla hisaab baseline − current tha — woh
+    // steering ko ulta kar deta: right hilao, gari left jaye.)
+    var delta = angleDeg - _tiltBaselineDeg!;
+    while (delta > 180) {
+      delta -= 360;
+    }
+    while (delta < -180) {
+      delta += 360;
+    }
+    if (delta.abs() > 100) {
+      // Phone dusri landscape simt par palat diya (ya ulta kar
+      // diya) — purana baseline bekaar hai. Key chhoro aur naya
+      // baseline banne do, warna aik simt ki key hamesha ke liye
+      // lagi rahegi.
+      if (_tiltKey != null) {
+        _tiltKey = null;
+        _setSourceKeys('tilt', const {});
+      }
+      _resetTiltBaseline();
+      return;
+    }
+    _evaluateTilt(delta);
+  }
+
+  /// Tilt angle se steering key — hysteresis ke saath (lagna 12°,
+  /// chhutna 8°), bilkul wheel ke dead-zone wale asool par. Key
+  /// source 'tilt' hai — pedals ke saath union me shamil hoti hai.
+  void _evaluateTilt(double deltaDeg) {
+    final profile = _settings.profile;
+    final left = profile.steerLeftKey;
+    final right = profile.steerRightKey;
+    GameKey? key = _tiltKey;
+    if (key == right) {
+      if (deltaDeg < -_tiltEngageDeg) {
+        key = left;
+      } else if (deltaDeg <= _tiltReleaseDeg) {
+        key = null;
+      }
+    } else if (key == left) {
+      if (deltaDeg > _tiltEngageDeg) {
+        key = right;
+      } else if (deltaDeg >= -_tiltReleaseDeg) {
+        key = null;
+      }
+    } else if (deltaDeg > _tiltEngageDeg) {
+      key = right;
+    } else if (deltaDeg < -_tiltEngageDeg) {
+      key = left;
+    } else {
+      key = null;
+    }
+    if (key != _tiltKey) {
+      _tiltKey = key;
+      _setSourceKeys('tilt', key == null ? const {} : {key});
+    }
   }
 
   /// ENTER/EXIT CAR button: F key tap + layout tabdeel (FR-19).
@@ -240,11 +501,19 @@ class _ControllerScreenState extends State<ControllerScreen>
     // atki na rahe. (setState is liye ke RUN button ki roshni bhi
     // foran bujh jaye.)
     setState(() => _clearAllKeys());
+    // Tilt sensor bhi band karo: Settings screen portrait hai, aur
+    // route push karne se app pause nahi hoti — sensor chalta raha
+    // to phone portrait ghumte hi (~90° ka farq) jhooti steering
+    // key lag jayegi aur Settings khule hone ke bawajood game me
+    // gari murti rahegi. Wapas aane par taaza baseline ke saath
+    // dobara chalega.
+    _stopTilt();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
     );
     // Settings screen portrait thi — controller ki landscape wapas lagao.
     _applyLandscape();
+    _updateTiltSubscription();
   }
 
   Future<void> _reconnect() async {
@@ -302,10 +571,12 @@ class _ControllerScreenState extends State<ControllerScreen>
                           hidState: _hidState,
                           driving: _driving,
                           onModeSelected: _switchMode,
+                          tiltMode: _tiltMode,
+                          onSteerModeSelected: _switchSteerMode,
                         ),
                       ),
                       _buildModeContent(wheelSize, clusterScale),
-                      if (_driving) _buildAngleReadout(),
+                      if (_driving && !_tiltMode) _buildAngleReadout(),
                       _buildGhostButtons(),
                       if (_bannerText != null) _buildBanner(),
                       if (!_connected) _buildDisconnectedOverlay(),
@@ -337,8 +608,59 @@ class _ControllerScreenState extends State<ControllerScreen>
         );
       },
       child: _driving
-          ? _buildDrivingLayer(wheelSize, flip, clusterScale)
+          ? (_tiltMode
+              ? _buildTiltDrivingLayer(flip, clusterScale)
+              : _buildDrivingLayer(wheelSize, flip, clusterScale))
           : _buildOnFootLayer(wheelSize, flip, clusterScale),
+    );
+  }
+
+  /// TILT mode ki driving layer (v2): wheel wali jagah par koi
+  /// wheel ya gauge nahi — BRAKE pedal neeche-left (jahan wheel
+  /// tha), RACE pedal neeche-right, aur EXIT CAR + HANDBRAKE RACE
+  /// ke upar bilkul steering mode wali jagah par. Steering sirf
+  /// phone hilane se hoti hai (source 'tilt').
+  Widget _buildTiltDrivingLayer(bool flip, double clusterScale) {
+    final profile = _settings.profile;
+    return Stack(
+      key: const ValueKey('driving-tilt'),
+      children: [
+        Positioned(
+          left: flip ? null : 34,
+          right: flip ? 34 : null,
+          bottom: 16,
+          child: Transform.scale(
+            scale: clusterScale,
+            alignment: flip ? Alignment.bottomRight : Alignment.bottomLeft,
+            child: _brakePedal(profile),
+          ),
+        ),
+        Positioned(
+          left: flip ? 26 : null,
+          right: flip ? null : 26,
+          bottom: 16,
+          child: Transform.scale(
+            scale: clusterScale,
+            alignment: flip ? Alignment.bottomLeft : Alignment.bottomRight,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _enterExitButton(),
+                    const SizedBox(width: 14),
+                    _handbrakeButton(profile),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _racePedal(profile),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -413,15 +735,67 @@ class _ControllerScreenState extends State<ControllerScreen>
 
   /// ENTER/EXIT CAR gol button — dono modes me bilkul wahi jagah:
   /// right cluster ki sab se upar wali row, pehli position.
+  /// Racing Cockpit: garam orange gradient.
   Widget _enterExitButton() {
     return RoundButton(
       diameter: 68,
       label: _driving ? 'EXIT\nCAR' : 'ENTER\nCAR',
       subLabel: _settings.profile.enterExitKey.label,
-      gradientTop: const Color(0xFF14B8A6),
-      gradientBottom: const Color(0xFF0F766E),
-      borderColor: const Color(0xFF2DD4BF),
+      gradientTop: const Color(0xFFFB923C),
+      gradientBottom: const Color(0xFFC2410C),
+      borderColor: const Color(0xFFFDBA74),
       onTap: _onEnterExitTap,
+    );
+  }
+
+  /// HANDBRAKE gol button — ENTER/EXIT ke saath wali position,
+  /// garam red gradient (Racing Cockpit).
+  Widget _handbrakeButton(GameProfile profile) {
+    return RoundButton(
+      diameter: 68,
+      label: 'HAND\nBRAKE',
+      subLabel: profile.handbrakeKey.label,
+      gradientTop: const Color(0xFFEF4444),
+      gradientBottom: const Color(0xFFB91C1C),
+      borderColor: const Color(0xFFFCA5A5),
+      onHeldChanged: (held) {
+        _setSourceKeys(
+          'handbrake',
+          held ? {profile.handbrakeKey} : const {},
+        );
+      },
+    );
+  }
+
+  /// BRAKE pedal — chaura chhota pad, red pehchan.
+  Widget _brakePedal(GameProfile profile) {
+    return CarPedal(
+      label: 'BRAKE',
+      subLabel: profile.brakeKey.label,
+      accent: const Color(0xFFF87171),
+      tall: false,
+      onHeldChanged: (held) {
+        _setSourceKeys(
+          'brake',
+          held ? {profile.brakeKey} : const {},
+        );
+      },
+    );
+  }
+
+  /// RACE pedal — lamba tang pad, green pehchan.
+  Widget _racePedal(GameProfile profile) {
+    return CarPedal(
+      label: 'RACE',
+      subLabel: profile.accelerateKey.label,
+      accent: const Color(0xFF4ADE80),
+      tall: true,
+      onHeldChanged: (held) {
+        _setSourceKeys(
+          'race',
+          held ? {profile.accelerateKey} : const {},
+        );
+      },
     );
   }
 
@@ -435,20 +809,7 @@ class _ControllerScreenState extends State<ControllerScreen>
           children: [
             _enterExitButton(),
             const SizedBox(width: 14),
-            RoundButton(
-              diameter: 68,
-              label: 'HAND\nBRAKE',
-              subLabel: profile.handbrakeKey.label,
-              gradientTop: const Color(0xFFF59E0B),
-              gradientBottom: const Color(0xFFB45309),
-              borderColor: const Color(0xFFFCD34D),
-              onHeldChanged: (held) {
-                _setSourceKeys(
-                  'handbrake',
-                  held ? {profile.handbrakeKey} : const {},
-                );
-              },
-            ),
+            _handbrakeButton(profile),
           ],
         ),
         const SizedBox(height: 10),
@@ -456,32 +817,10 @@ class _ControllerScreenState extends State<ControllerScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // RACE pehla (left), BRAKE baad me (right) — revised design.
-            CarPedal(
-              label: 'RACE',
-              subLabel: profile.accelerateKey.label,
-              accent: const Color(0xFF4ADE80),
-              tall: true,
-              onHeldChanged: (held) {
-                _setSourceKeys(
-                  'race',
-                  held ? {profile.accelerateKey} : const {},
-                );
-              },
-            ),
+            // BRAKE pehla (left), RACE baad me (right) — final design (v2).
+            _brakePedal(profile),
             const SizedBox(width: 20),
-            CarPedal(
-              label: 'BRAKE',
-              subLabel: profile.brakeKey.label,
-              accent: const Color(0xFFF87171),
-              tall: false,
-              onHeldChanged: (held) {
-                _setSourceKeys(
-                  'brake',
-                  held ? {profile.brakeKey} : const {},
-                );
-              },
-            ),
+            _racePedal(profile),
           ],
         ),
       ],
@@ -522,9 +861,9 @@ class _ControllerScreenState extends State<ControllerScreen>
               diameter: 94,
               label: 'JUMP',
               subLabel: profile.jumpKey.label,
-              gradientTop: const Color(0xFF38BDF8),
-              gradientBottom: const Color(0xFF0369A1),
-              borderColor: const Color(0xFF7DD3FC),
+              gradientTop: const Color(0xFF4B5563),
+              gradientBottom: const Color(0xFF1F2937),
+              borderColor: const Color(0xFFFB923C),
               onHeldChanged: (held) {
                 _setSourceKeys(
                   'jump',
@@ -610,7 +949,7 @@ class _ControllerScreenState extends State<ControllerScreen>
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
             decoration: BoxDecoration(
               color: const Color(0xFF020617).withValues(alpha: 0.78),
-              border: Border.all(color: const Color(0xFF2DD4BF), width: 1.5),
+              border: Border.all(color: const Color(0xFFF97316), width: 1.5),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
@@ -638,8 +977,8 @@ class _ControllerScreenState extends State<ControllerScreen>
             width: 340,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF0B1220),
-              border: Border.all(color: const Color(0xFF334155)),
+              color: const Color(0xFF10141B),
+              border: Border.all(color: const Color(0xFF374151)),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
@@ -688,7 +1027,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                       : const Icon(Icons.bluetooth_connected),
                   label: Text(_reconnecting ? 'Connect ho raha…' : 'Reconnect'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F766E),
+                    backgroundColor: const Color(0xFFEA580C),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 26,
                       vertical: 13,
@@ -825,7 +1164,7 @@ class _GhostIconButton extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: const Color(0xFF020617).withValues(alpha: 0.55),
-              border: Border.all(color: const Color(0xFF334155)),
+              border: Border.all(color: const Color(0xFF374151)),
             ),
             child: Icon(icon, size: 20, color: const Color(0xFFCBD5E1)),
           ),

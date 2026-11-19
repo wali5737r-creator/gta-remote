@@ -150,10 +150,10 @@ class _WasdJoystickState extends State<WasdJoystick>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const RadialGradient(
-                  colors: [Color(0xFF16203A), Color(0xFF0B1220)],
+                  colors: [Color(0xFF1A2029), Color(0xFF0B0E13)],
                   stops: [0.0, 0.75],
                 ),
-                border: Border.all(color: const Color(0xFF334155), width: 3),
+                border: Border.all(color: const Color(0xFF374151), width: 3),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.55),
@@ -164,7 +164,7 @@ class _WasdJoystickState extends State<WasdJoystick>
               ),
             ),
             const _DirectionArrows(),
-            // Knob — teal, chamak ke saath.
+            // Knob — garam orange, chamak ke saath (Racing Cockpit).
             Positioned(
               left: (widget.size - knobSize) / 2 + _knobOffset.dx,
               top: (widget.size - knobSize) / 2 + _knobOffset.dy,
@@ -176,10 +176,10 @@ class _WasdJoystickState extends State<WasdJoystick>
                   gradient: const RadialGradient(
                     center: Alignment(-0.35, -0.4),
                     radius: 1.05,
-                    colors: [Color(0xFF5EEAD4), Color(0xFF0F766E)],
+                    colors: [Color(0xFFFDBA74), Color(0xFFEA580C)],
                   ),
                   border:
-                      Border.all(color: const Color(0xFF99F6E4), width: 3),
+                      Border.all(color: const Color(0xFFFED7AA), width: 3),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.6),

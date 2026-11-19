@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body { background:#04060B; color:#E5E7EB; width:1560px; padding:38px 30px 34px; }
+  h1 { text-align:center; font-size:32px; font-weight:300; letter-spacing:6px; color:#F8FAFC; }
+  h1 b { font-weight:800; color:#2DD4BF; }
+  .sub { text-align:center; color:#7C8DA6; font-size:14px; margin-top:8px; letter-spacing:2.5px; }
+  .grid { display:flex; flex-wrap:wrap; gap:34px 36px; justify-content:center; margin-top:32px; }
+  .col { text-align:center; width:724px; }
+  .cap { margin-top:14px; font-size:18px; font-weight:800; letter-spacing:3px; color:#fff; }
+  .cap b { color:#2DD4BF; }
+  .cap small { display:block; color:#8CA0B8; font-weight:400; font-size:14px; letter-spacing:.5px; margin-top:4px; }
+  .note { width:724px; height:392px; border-radius:40px; border:2px dashed #2B3B55; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:#CBD5E1; padding:40px; text-align:center; }
+  .note .big { font-size:26px; font-weight:800; letter-spacing:2px; color:#fff; }
+  .note .small { font-size:16px; color:#8CA0B8; line-height:1.55; }
+
+  /* ============ shared phone + layout (approved positions) ============ */
+  .phone { position:relative; width:724px; height:392px; border-radius:40px; overflow:hidden; text-align:left;
+           border:1px solid rgba(148,184,220,.16); box-shadow:0 0 0 5px #01030A, 0 26px 60px rgba(0,0,0,.6); }
+  .notch { position:absolute; left:50%; top:0; transform:translateX(-50%); width:150px; height:19px; background:#01030A; border-radius:0 0 14px 14px; z-index:5; }
+  .topbar { position:absolute; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between; padding:15px 18px 0; z-index:4; }
+  .status { display:flex; align-items:center; gap:9px; padding:8px 14px; border-radius:999px; font-size:13.5px; letter-spacing:.6px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#34D399; box-shadow:0 0 10px #34D399; }
+  .pill { padding:8px 14px; border-radius:999px; font-size:12px; font-weight:700; letter-spacing:2.5px; }
+  .wheelwrap { position:absolute; left:38px; bottom:32px; width:252px; height:252px; z-index:2; }
+  .wheel { position:absolute; inset:0; border-radius:50%; transform:rotate(-24deg); }
+  .wheelInner { position:absolute; inset:23px; border-radius:50%; overflow:hidden; }
+  .stitch { position:absolute; inset:6px; border-radius:50%; }
+  .stripe { position:absolute; left:50%; top:-1px; width:17px; height:22px; margin-left:-8.5px; z-index:3; border-radius:3px; }
+  .spokeH { position:absolute; left:50%; top:50%; width:196px; height:38px; margin:-19px 0 0 -98px; border-radius:10px; }
+  .spokeB { position:absolute; left:50%; top:50%; width:38px; height:112px; margin:8px 0 0 -19px; border-radius:10px; }
+  .hub { position:absolute; left:50%; top:50%; width:98px; height:98px; margin:-49px 0 0 -49px; border-radius:50%; z-index:2; display:flex; align-items:center; justify-content:center; }
+  .hubring { width:46px; height:46px; border-radius:50%; }
+  .pedals { position:absolute; right:38px; bottom:22px; display:flex; align-items:flex-end; gap:24px; z-index:2; }
+  .pedal { display:flex; flex-direction:column; align-items:center; }
+  .arm { width:12px; height:38px; border-radius:5px; transform:rotate(7deg); transform-origin:bottom center; margin-bottom:-4px; }
+  .pad { position:relative; border-radius:11px; overflow:hidden; }
+  .racepad { width:74px; height:150px; }
+  .brakepad { width:112px; height:94px; }
+  .plabel { margin-top:10px; font-size:13.5px; font-weight:700; letter-spacing:4.5px; }
+  .topbtns { position:absolute; right:32px; bottom:242px; display:flex; gap:15px; z-index:3; }
+  .rbtn { width:70px; height:70px; border-radius:50%; color:#fff; font-weight:800; display:flex; align-items:center; justify-content:center; text-align:center; line-height:1.2; font-size:12.5px; letter-spacing:.6px; }
+  .hand { font-size:11px; }
+  .glass { background:rgba(10,17,32,.55); border:1px solid rgba(255,255,255,.09); color:#CBD5E1; }
+  .pill.glass { color:#FDE68A; }
+
+  /* ============ V5 (base) — PREMIUM TEAL (current) ============ */
+  .v5 { background:radial-gradient(420px 300px at 18% 88%, rgba(45,212,191,.10), transparent 65%), linear-gradient(165deg,#111B2E,#0A1120 55%,#060B14); }
+  .v5 .wheel { background:conic-gradient(from 205deg,#46536B,#1A2334 26%,#0D1420 52%,#2C3A50 78%,#46536B); box-shadow:0 22px 44px rgba(0,0,0,.65), inset 0 3px 5px rgba(255,255,255,.22), inset 0 -10px 18px rgba(0,0,0,.6); }
+  .v5 .wheelInner { background:radial-gradient(circle at 50% 42%,#131E33,#0A101D 72%); box-shadow:inset 0 10px 26px rgba(0,0,0,.75); }
+  .v5 .stitch { border:2px dashed rgba(203,213,225,.34); }
+  .v5 .stripe { background:linear-gradient(180deg,#F1F5F9,#94A3B8); }
+  .v5 .spokeH { background:linear-gradient(180deg,#E3EAF2,#9FB0C3 38%,#64788F 62%,#A9BACB); box-shadow:0 5px 12px rgba(0,0,0,.55); }
+  .v5 .spokeB { background:linear-gradient(90deg,#C6D2DF,#8296AC 45%,#5B6E84 70%,#9DB0C4); box-shadow:0 5px 12px rgba(0,0,0,.55); }
+  .v5 .hub { background:radial-gradient(circle at 42% 32%,#5B6B84,#232F45 58%,#141D2E); border:2px solid rgba(255,255,255,.14); box-shadow:0 10px 22px rgba(0,0,0,.6); }
+  .v5 .hubring { border:3px solid #2DD4BF; box-shadow:0 0 14px rgba(45,212,191,.45); background:radial-gradient(circle at 42% 34%,#3B4B63,#1B2639); }
+  .v5 .arm { background:linear-gradient(90deg,#E7EDF4,#8D9DB1 55%,#5E7089); }
+  .v5 .pad { border:1px solid rgba(255,255,255,.5); background:linear-gradient(155deg,#F0F4F9,#B4C1D1 34%,#7E90A6 68%,#C3CFDD); box-shadow:0 16px 30px rgba(0,0,0,.6); }
+  .v5 .pad:after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(180deg, rgba(13,20,32,.62) 0 8px, transparent 8px 17px); }
+  .v5 .car { background:radial-gradient(circle at 38% 30%,#2DD4BF,#0D9488 58%,#0B6E63); border:1px solid rgba(255,255,255,.35); box-shadow:0 12px 26px rgba(13,148,136,.45); }
+  .v5 .hand { background:radial-gradient(circle at 38% 30%,#FBBF24,#D97706 58%,#9A4A03); border:1px solid rgba(255,255,255,.35); box-shadow:0 12px 26px rgba(217,119,6,.42); }
+
+  /* ============ V1 — RACING COCKPIT ============ */
+  .v1 { background:
+      radial-gradient(420px 280px at 85% 95%, rgba(239,68,68,.12), transparent 60%),
+      repeating-linear-gradient(45deg, #12161D 0 7px, #0C0F14 7px 14px),
+      repeating-linear-gradient(-45deg, #10141B 0 7px, #0A0D11 7px 14px), #0B0E13; }
+  .v1 .glass { background:rgba(8,10,14,.7); border:1px solid rgba(251,146,60,.35); }
+  .v1 .pill.glass { color:#FDBA74; }
+  .v1 .wheel { background:conic-gradient(from 205deg,#3A3F47,#14171C 26%,#0A0C0F 52%,#262B33 78%,#3A3F47); box-shadow:0 22px 44px rgba(0,0,0,.7), inset 0 3px 5px rgba(255,255,255,.15), inset 0 -10px 18px rgba(0,0,0,.7); }
+  .v1 .wheelInner { background:radial-gradient(circle at 50% 42%,#171B21,#08090C 72%); box-shadow:inset 0 10px 26px rgba(0,0,0,.8); }
+  .v1 .stitch { border:2px dashed rgba(251,146,60,.5); }
+  .v1 .stripe { background:linear-gradient(180deg,#EF4444,#991B1B); }
+  .v1 .spokeH { background:linear-gradient(180deg,#4B5563,#1F2937 55%,#374151); box-shadow:0 5px 12px rgba(0,0,0,.6); }
+  .v1 .spokeB { background:linear-gradient(90deg,#4B5563,#1F2937 55%,#374151); box-shadow:0 5px 12px rgba(0,0,0,.6); }
+  .v1 .hub { background:radial-gradient(circle at 42% 32%,#4B5563,#111827 60%,#030712); border:2px solid rgba(251,146,60,.4); box-shadow:0 10px 22px rgba(0,0,0,.65); }
+  .v1 .hubring { border:3px solid #F97316; box-shadow:0 0 14px rgba(249,115,22,.5); background:radial-gradient(circle at 42% 34%,#374151,#0B0F16); }
+  .v1 .arm { background:linear-gradient(90deg,#9CA3AF,#4B5563); }
+  .v1 .pad { border:1px solid rgba(255,255,255,.28); background:linear-gradient(155deg,#6B7280,#374151 40%,#1F2937 75%,#4B5563); box-shadow:0 16px 30px rgba(0,0,0,.65); }
+  .v1 .pad:after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(90deg, rgba(0,0,0,.55) 0 7px, transparent 7px 15px); }
+  .v1 .plabel { font-style:italic; }
+  .v1 .car { background:radial-gradient(circle at 38% 30%,#FB923C,#EA580C 58%,#7C2D12); border:1px solid rgba(255,255,255,.3); box-shadow:0 12px 26px rgba(234,88,12,.45); }
+  .v1 .hand { background:radial-gradient(circle at 38% 30%,#EF4444,#B91C1C 58%,#450A0A); border:1px solid rgba(255,255,255,.3); box-shadow:0 12px 26px rgba(185,28,28,.45); }
+
+  /* ============ V2 — NEON GAMING ============ */
+  .v2 { background:
+      radial-gradient(460px 300px at 15% 90%, rgba(34,211,238,.14), transparent 60%),
+      radial-gradient(420px 280px at 88% 88%, rgba(232,121,249,.12), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(103,232,249,.045) 0 1px, transparent 1px 44px),
+      repeating-linear-gradient(90deg, rgba(103,232,249,.045) 0 1px, transparent 1px 44px),
+      linear-gradient(165deg,#150B24,#0B0616 60%,#050310); }
+  .v2 .glass { background:rgba(16,8,32,.6); border:1px solid rgba(103,232,249,.4); color:#CFFAFE; }
+  .v2 .pill.glass { color:#F0ABFC; border-color:rgba(240,171,252,.4); }
+  .v2 .dot { background:#22D3EE; box-shadow:0 0 12px #22D3EE; }
+  .v2 .wheel { background:conic-gradient(from 205deg,#273549,#0C1220 26%,#070B14 52%,#1B2940 78%,#273549); box-shadow:0 0 34px rgba(34,211,238,.35), 0 22px 44px rgba(0,0,0,.65), inset 0 0 22px rgba(34,211,238,.18); }
+  .v2 .wheelInner { background:radial-gradient(circle at 50% 42%,#120E24,#07040F 72%); box-shadow:inset 0 10px 26px rgba(0,0,0,.8); }
+  .v2 .stitch { border:2px dashed rgba(240,171,252,.55); }
+  .v2 .stripe { background:#22D3EE; box-shadow:0 0 12px #22D3EE; }
+  .v2 .spokeH { background:linear-gradient(180deg,#164E63,#0B2530 60%,#155E75); box-shadow:0 0 14px rgba(34,211,238,.35); }
+  .v2 .spokeB { background:linear-gradient(90deg,#164E63,#0B2530 60%,#155E75); box-shadow:0 0 14px rgba(34,211,238,.35); }
+  .v2 .hub { background:radial-gradient(circle at 42% 32%,#2A2140,#120B24 60%,#08040F); border:2px solid rgba(103,232,249,.55); box-shadow:0 0 20px rgba(34,211,238,.4); }
+  .v2 .hubring { border:3px solid #E879F9; box-shadow:0 0 16px rgba(232,121,249,.65), inset 0 0 10px rgba(232,121,249,.5); background:transparent; }
+  .v2 .arm { background:linear-gradient(90deg,#67E8F9,#155E75); }
+  .v2 .pad { background:rgba(8,15,26,.85); box-shadow:0 16px 30px rgba(0,0,0,.6); }
+  .v2 .racepad { border:2px solid #4ADE80; box-shadow:0 0 20px rgba(74,222,128,.4); }
+  .v2 .brakepad { border:2px solid #FB7185; box-shadow:0 0 20px rgba(251,113,133,.4); }
+  .v2 .pad:after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(180deg, rgba(255,255,255,.13) 0 8px, transparent 8px 17px); }
+  .v2 .plabel { text-shadow:0 0 12px currentColor; }
+  .v2 .car { background:rgba(8,30,40,.85); border:2px solid #22D3EE; color:#A5F3FC; box-shadow:0 0 22px rgba(34,211,238,.5); }
+  .v2 .hand { background:rgba(40,8,34,.85); border:2px solid #E879F9; color:#F5D0FE; box-shadow:0 0 22px rgba(232,121,249,.5); }
+
+  /* ============ V3 — MINIMAL CLEAN ============ */
+  .v3 { background:linear-gradient(170deg,#14181D,#0D1013 70%); }
+  .v3 .glass { background:transparent; border:1px solid rgba(255,255,255,.22); color:#E5E7EB; }
+  .v3 .pill.glass { color:#E5E7EB; }
+  .v3 .dot { background:#A3E635; box-shadow:none; }
+  .v3 .wheel { background:transparent; border:11px solid #8A97A5; box-shadow:none; }
+  .v3 .wheelInner { inset:0; background:transparent; box-shadow:none; }
+  .v3 .stitch { display:none; }
+  .v3 .stripe { background:#E5E7EB; width:12px; height:12px; border-radius:50%; top:2px; margin-left:-6px; }
+  .v3 .spokeH { height:14px; margin-top:-7px; width:216px; margin-left:-108px; background:#8A97A5; border-radius:7px; box-shadow:none; }
+  .v3 .spokeB { width:14px; margin-left:-7px; height:104px; background:#8A97A5; border-radius:7px; box-shadow:none; }
+  .v3 .hub { width:64px; height:64px; margin:-32px 0 0 -32px; background:#14181D; border:3px solid #8A97A5; box-shadow:none; }
+  .v3 .hubring { width:16px; height:16px; border:none; background:#E5E7EB; }
+  .v3 .arm { background:#5B6B7A; height:30px; }
+  .v3 .pad { background:#1B222B; border:1.5px solid #46545F; box-shadow:none; }
+  .v3 .pad:after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0 8px, transparent 8px 17px); }
+  .v3 .plabel { color:#C7D0D9 !important; font-weight:600; }
+  .v3 .rbtn { background:transparent; border:1.5px solid rgba(255,255,255,.55); color:#F3F4F6; box-shadow:none; font-weight:700; }
+
+  /* ============ V4 — LUXURY GOLD ============ */
+  .v4 { background:radial-gradient(560px 340px at 50% 30%, #1A1508, #050403 72%); }
+  .v4 .glass { background:rgba(12,10,4,.65); border:1px solid rgba(212,175,55,.45); color:#EDE3C2; }
+  .v4 .pill.glass { color:#D4AF37; }
+  .v4 .wheel { background:conic-gradient(from 205deg,#33302A,#131109 26%,#080604 52%,#26231B 78%,#33302A); box-shadow:0 22px 44px rgba(0,0,0,.75), inset 0 3px 5px rgba(255,235,180,.16), inset 0 -10px 18px rgba(0,0,0,.7); }
+  .v4 .wheelInner { background:radial-gradient(circle at 50% 42%,#171408,#060503 72%); box-shadow:inset 0 10px 26px rgba(0,0,0,.85); }
+  .v4 .stitch { border:2px dashed rgba(212,175,55,.65); }
+  .v4 .stripe { background:linear-gradient(180deg,#F5D97E,#B8912C); }
+  .v4 .spokeH { background:linear-gradient(180deg,#8C7434,#4A3B14 55%,#77622A); box-shadow:0 5px 12px rgba(0,0,0,.6); }
+  .v4 .spokeB { background:linear-gradient(90deg,#8C7434,#4A3B14 55%,#77622A); box-shadow:0 5px 12px rgba(0,0,0,.6); }
+  .v4 .hub { background:radial-gradient(circle at 42% 32%,#3D3320,#17130A 60%,#0A0805); border:2px solid rgba(212,175,55,.55); box-shadow:0 10px 22px rgba(0,0,0,.7); }
+  .v4 .hubring { border:3px solid #D4AF37; box-shadow:0 0 14px rgba(212,175,55,.45); background:radial-gradient(circle at 42% 34%,#2A2312,#0D0B06); }
+  .v4 .arm { background:linear-gradient(90deg,#C9A93F,#6E5A1E); }
+  .v4 .pad { border:1px solid rgba(212,175,55,.55); background:linear-gradient(155deg,#3A352A,#171410 40%,#0B0A08 75%,#2A261D); box-shadow:0 16px 30px rgba(0,0,0,.7); }
+  .v4 .pad:after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(180deg, rgba(212,175,55,.14) 0 8px, transparent 8px 17px); }
+  .v4 .plabel { color:#D4AF37 !important; }
+  .v4 .car { background:radial-gradient(circle at 38% 30%,#2E2912,#141007 60%); border:1.5px solid #D4AF37; color:#F5D97E; box-shadow:0 12px 26px rgba(0,0,0,.6); }
+  .v4 .hand { background:radial-gradient(circle at 38% 30%,#2E2912,#141007 60%); border:1.5px solid rgba(212,175,55,.6); color:#E7CE7A; box-shadow:0 12px 26px rgba(0,0,0,.6); }
+</style>
+</head>
+<body>
+  <h1>GTA <b>REMOTE</b> — 5 DESIGN OPTIONS</h1>
+  <div class="sub">LAYOUT SAB ME AIK JAISA HAI — SIRF LOOK ALAG HAI &nbsp;•&nbsp; JO PASAND AYE USKA NUMBER BATA DO</div>
+
+  <div class="grid" id="grid"></div>
+
+<script>
+  const phoneHTML = (cls) => `
+  <div class="phone ${cls}">
+    <div class="notch"></div>
+    <div class="topbar">
+      <div class="status glass"><div class="dot"></div>Connected • GTA V</div>
+      <div class="pill glass">DRIVING</div>
+    </div>
+    <div class="wheelwrap">
+      <div class="wheel">
+        <div class="stripe"></div>
+        <div class="wheelInner">
+          <div class="stitch"></div>
+          <div class="spokeH"></div><div class="spokeB"></div>
+          <div class="hub"><div class="hubring"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="topbtns">
+      <div class="rbtn car">EXIT<br>CAR</div>
+      <div class="rbtn hand">HAND<br>BRAKE</div>
+    </div>
+    <div class="pedals">
+      <div class="pedal"><div class="arm"></div><div class="pad racepad"></div><div class="plabel" style="color:#4ADE80;">RACE</div></div>
+      <div class="pedal"><div class="arm"></div><div class="pad brakepad"></div><div class="plabel" style="color:#F87171;">BRAKE</div></div>
+    </div>
+  </div>`;
+
+  const designs = [
+    { cls:'v1', cap:'DESIGN <b>1</b> — RACING COCKPIT', sub:'Asli racing car ke dashboard jesa — carbon + garam rang' },
+    { cls:'v2', cap:'DESIGN <b>2</b> — NEON GAMING', sub:'Gaming style — chamakti hui neon lights, gehra jamni rang' },
+    { cls:'v3', cap:'DESIGN <b>3</b> — MINIMAL CLEAN', sub:'Bilkul saaf suthra — halki lines, koi chamak damak nahi' },
+    { cls:'v4', cap:'DESIGN <b>4</b> — LUXURY GOLD', sub:'Mehnga luxury style — kala + sunehra (gold)' },
+    { cls:'v5', cap:'DESIGN <b>5</b> — PREMIUM TEAL', sub:'Hamara mojooda design — sheesha + metal, sabz neela' },
+  ];
+
+  const grid = document.getElementById('grid');
+  designs.forEach(d => {
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.innerHTML = phoneHTML(d.cls) + `<div class="cap">${d.cap}<small>${d.sub}</small></div>`;
+    grid.appendChild(col);
+  });
+  const note = document.createElement('div');
+  note.className = 'note';
+  note.innerHTML = '<div class="big">APNA DESIGN CHUNO</div><div class="small">Jo design sab se acha lage, sirf uska <b>number</b> (1, 2, 3, 4 ya 5) bata do.<br>App bilkul usi look me banegi — driving aur paidal dono screens par.</div>';
+  grid.appendChild(note);
+</script>
+</body>
+</html>

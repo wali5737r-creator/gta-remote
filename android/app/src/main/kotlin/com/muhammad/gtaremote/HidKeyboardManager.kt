@@ -90,9 +90,9 @@ class HidKeyboardManager(
             ByteArray(values.size) { index -> values[index].toByte() }
 
         private val SDP_SETTINGS = BluetoothHidDeviceAppSdpSettings(
-            "GTA Remote",
-            "GTA Remote Bluetooth keyboard",
-            "GTA Remote",
+            "AB GTA",
+            "AB GTA Bluetooth keyboard",
+            "AB GTA",
             BluetoothHidDevice.SUBCLASS1_KEYBOARD,
             REPORT_DESCRIPTOR
         )
@@ -257,7 +257,7 @@ class HidKeyboardManager(
                 } catch (e: Exception) {
                     result.error(
                         "settings_failed",
-                        "App settings nahi khul sakin. Phone ki Settings → Apps → GTA Remote → Permissions se Bluetooth allow karo.",
+                        "App settings nahi khul sakin. Phone ki Settings → Apps → AB GTA → Permissions se Bluetooth allow karo.",
                         null
                     )
                 }
