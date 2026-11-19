@@ -126,6 +126,13 @@ class HidService {
                 deviceAddress: raw['address'] as String?,
                 clearError: true,
               ));
+              if (connection == HidConnection.connected) {
+                // FR-28: (dobara) connect hote hi maujooda — drop ke
+                // baad khali — state ki aik report bhejo, taake game
+                // saaf haalat se shuru ho aur koi purani key PC par
+                // atki na rahe.
+                _sendCurrentReport();
+              }
             }
             break;
           case 'error':
@@ -178,6 +185,11 @@ class HidService {
 
   Future<void> openBluetoothSettings() async {
     await _methods.invokeMethod<void>('openBluetoothSettings');
+  }
+
+  /// App ki apni Settings screen (permission hamesha ke liye band ho to).
+  Future<void> openAppSettings() async {
+    await _methods.invokeMethod<void>('openAppSettings');
   }
 
   /// Phone ko itni dair ke liye discoverable banao (pehli pairing ke liye).
@@ -262,10 +274,7 @@ class HidService {
       }
 
       // Haqiqi "connected" callback ka intezar.
-      final connected = await states
-          .firstWhere((state) => state.isConnected)
-          .timeout(const Duration(seconds: 20), onTimeout: () => _current)
-          .then((state) => state.isConnected);
+      final connected = await _waitForConnection(address);
       if (!connected) {
         return _current.error ??
             'Connect nahi ho saka. Laptop ki Bluetooth settings me ja kar is phone ko "Remove device" karo, phir app khuli rakh kar dobara pair karo aur CONNECT dabao.';
@@ -273,6 +282,36 @@ class HidService {
       return null;
     } on PlatformException catch (error) {
       return error.message ?? 'Bluetooth me kuch ghalat ho gaya.';
+    }
+  }
+
+  /// [connect] ke baad asal "connected" callback ka intezar.
+  ///
+  /// Connected event aye to true; darmiyan me link kat jaye to **foran**
+  /// false (user ko poore 20 second latka nahi rakhte); 20 second guzar
+  /// jayen to maujooda haalat hi jawab hai. Pehle se connected ho to
+  /// foran true — broadcast stream ka purana event dobara nahi aata,
+  /// is liye maujooda state pehle check hoti hai.
+  Future<bool> _waitForConnection(String address) async {
+    if (_current.isConnected && _current.deviceAddress == address) {
+      return true;
+    }
+    final completer = Completer<bool>();
+    final subscription = states.listen((state) {
+      if (completer.isCompleted) return;
+      if (state.isConnected) {
+        completer.complete(true);
+      } else if (state.connection == HidConnection.disconnected) {
+        completer.complete(false);
+      }
+    });
+    try {
+      return await completer.future.timeout(
+        const Duration(seconds: 20),
+        onTimeout: () => _current.isConnected,
+      );
+    } finally {
+      await subscription.cancel();
     }
   }
 

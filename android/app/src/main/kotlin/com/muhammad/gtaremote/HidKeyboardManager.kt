@@ -127,7 +127,13 @@ class HidKeyboardManager(
     private var connectedDevice: BluetoothDevice? = null
     private var targetDevice: BluetoothDevice? = null
 
-    private var pendingRegisterResult: MethodChannel.Result? = null
+    // Registration ka intezar karne wale Dart futures. Aik se zyada ho
+    // sakte hain (screen khulte hi early-register + CONNECT par dobara
+    // request) — sab ko aik hi callback se jawab milta hai, taake koi
+    // request "busy" par hamesha ke liye atak na jaye.
+    private val pendingRegisterResults = mutableListOf<MethodChannel.Result>()
+    private var registerCallInFlight = false
+    private var registerCallStartedAtMs = 0L
     private var pendingPermissionResult: MethodChannel.Result? = null
     private var pendingEnableResult: MethodChannel.Result? = null
     private var pendingDiscoverableResult: MethodChannel.Result? = null
@@ -136,9 +142,10 @@ class HidKeyboardManager(
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
             hidDevice = proxy as? BluetoothHidDevice
             // Agar registration proxy ka intezar kar rahi thi to ab karo.
-            val pending = pendingRegisterResult
-            if (pending != null && !isRegistered) {
-                doRegister(pending)
+            if (pendingRegisterResults.isNotEmpty() && !isRegistered &&
+                !registerCallInFlight
+            ) {
+                doRegister()
             }
         }
 
@@ -147,6 +154,12 @@ class HidKeyboardManager(
             isRegistered = false
             connectionState = BluetoothProfile.STATE_DISCONNECTED
             connectedDevice = null
+            targetDevice = null
+            // Intezar karne walo ko latka hua mat chhoro — warna agli
+            // registration hamesha ke liye atak jayegi.
+            failPendingRegisters(
+                "Bluetooth service band ho gayi. Bluetooth off karke dobara on karo, phir koshish karo."
+            )
             emitAppStatus()
             emitConnection(null, BluetoothProfile.STATE_DISCONNECTED)
         }
@@ -159,18 +172,12 @@ class HidKeyboardManager(
         ) {
             isRegistered = registered
             emitAppStatus()
-            val pending = pendingRegisterResult
-            if (pending != null) {
-                pendingRegisterResult = null
-                if (registered) {
-                    pending.success(true)
-                } else {
-                    pending.error(
-                        "register_failed",
-                        "Registration band ho gayi. Koi aur remote/keyboard app Bluetooth keyboard use kar rahi ho sakti hai — use band karke dobara koshish karo.",
-                        null
-                    )
-                }
+            if (registered) {
+                completePendingRegisters()
+            } else {
+                failPendingRegisters(
+                    "Registration band ho gayi. Koi aur remote/keyboard app Bluetooth keyboard use kar rahi ho sakti hai — use band karke dobara koshish karo."
+                )
             }
         }
 
@@ -231,6 +238,28 @@ class HidKeyboardManager(
                     result.success(null)
                 } catch (e: Exception) {
                     result.error("settings_failed", "Bluetooth settings nahi khul sakin.", null)
+                }
+            }
+            "openAppSettings" -> {
+                // Permission hamesha ke liye band ho to user ko app ki
+                // apni Settings par bhejo (Nearby devices → Allow).
+                try {
+                    val intent = Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        android.net.Uri.fromParts(
+                            "package",
+                            activity.packageName,
+                            null
+                        )
+                    )
+                    activity.startActivity(intent)
+                    result.success(null)
+                } catch (e: Exception) {
+                    result.error(
+                        "settings_failed",
+                        "App settings nahi khul sakin. Phone ki Settings → Apps → GTA Remote → Permissions se Bluetooth allow karo.",
+                        null
+                    )
                 }
             }
             "makeDiscoverable" -> makeDiscoverable(result)
@@ -317,13 +346,26 @@ class HidKeyboardManager(
             return
         }
         pendingEnableResult = result
-        activity.startActivityForResult(
-            Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE),
-            REQ_ENABLE_BT
-        )
+        try {
+            activity.startActivityForResult(
+                Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE),
+                REQ_ENABLE_BT
+            )
+        } catch (e: Exception) {
+            pendingEnableResult = null
+            result.error(
+                "enable_failed",
+                "Bluetooth on karne wali screen nahi khul saki. Phone ki Settings se Bluetooth on karke dobara koshish karo.",
+                null
+            )
+        }
     }
 
     private fun makeDiscoverable(result: MethodChannel.Result) {
+        if (bluetoothAdapter == null) {
+            result.error("no_bluetooth", "Is phone me Bluetooth nahi hai.", null)
+            return
+        }
         if (pendingDiscoverableResult != null) {
             result.success(false)
             return
@@ -332,7 +374,16 @@ class HidKeyboardManager(
         val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
             putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
         }
-        activity.startActivityForResult(intent, REQ_DISCOVERABLE)
+        try {
+            activity.startActivityForResult(intent, REQ_DISCOVERABLE)
+        } catch (e: Exception) {
+            pendingDiscoverableResult = null
+            result.error(
+                "discoverable_failed",
+                "Discoverable wali screen nahi khul saki. Dobara koshish karo.",
+                null
+            )
+        }
     }
 
     /** MainActivity se forward hota hai. True = hum ne handle kar liya. */
@@ -401,46 +452,72 @@ class HidKeyboardManager(
             result.success(true)
             return
         }
-        if (pendingRegisterResult != null) {
-            result.error("busy", "Registration pehle se chal rahi hai.", null)
+        // Registration pehle se chal rahi ho to ye request bhi usi ke
+        // saath line me lag jati hai — "busy" error nahi milta, aur aik
+        // hi asal callback sab ko jawab de deta hai.
+        pendingRegisterResults.add(result)
+        if (registerCallInFlight) {
+            // Kuch phones par registerApp qubool hone ke bawajood
+            // callback kabhi nahi aata — purani call buhat purani ho
+            // gayi ho to aik dafa dobara bhej do, warna sab intezar
+            // karne wale hamesha ke liye atak jayenge.
+            val elapsed = android.os.SystemClock.elapsedRealtime() -
+                registerCallStartedAtMs
+            if (elapsed > 4000) {
+                doRegister()
+            }
             return
         }
-        val proxy = hidDevice
-        if (proxy == null) {
-            // Proxy abhi nahi aaya — pending rakho, aate hi register hoga.
-            pendingRegisterResult = result
+        if (hidDevice == null) {
+            // Proxy abhi nahi aaya — aate hi doRegister chalega
+            // (profileListener dekho).
             requestHidProxy()
             return
         }
-        doRegister(result)
+        doRegister()
     }
 
-    private fun doRegister(result: MethodChannel.Result) {
+    private fun doRegister() {
         val proxy = hidDevice
         if (proxy == null) {
-            pendingRegisterResult = null
-            result.error(
-                "no_proxy",
-                "Bluetooth service tayyar nahi. Thodi dair baad dobara koshish karo.",
-                null
+            failPendingRegisters(
+                "Bluetooth service tayyar nahi. Thodi dair baad dobara koshish karo."
             )
             return
         }
-        pendingRegisterResult = result
+        registerCallInFlight = true
+        registerCallStartedAtMs = android.os.SystemClock.elapsedRealtime()
         val accepted = try {
             proxy.registerApp(SDP_SETTINGS, null, QOS_SETTINGS, mainExecutor, hidCallback)
         } catch (e: SecurityException) {
             false
         }
         if (!accepted) {
-            pendingRegisterResult = null
-            result.error(
-                "register_failed",
-                "Registration shuru nahi ho saki. Koi aur remote app khuli ho to band karke dobara koshish karo.",
-                null
+            failPendingRegisters(
+                "Registration shuru nahi ho saki. Koi aur remote app khuli ho to band karke dobara koshish karo."
             )
         }
         // Kamyabi ka asal jawab onAppStatusChanged callback dega.
+    }
+
+    /** Tamam intezar karne walo ko kamyabi ka jawab do. */
+    private fun completePendingRegisters() {
+        registerCallInFlight = false
+        val waiting = pendingRegisterResults.toList()
+        pendingRegisterResults.clear()
+        for (result in waiting) {
+            result.success(true)
+        }
+    }
+
+    /** Tamam intezar karne walo ko nakami ka jawab do (koi latka na rahe). */
+    private fun failPendingRegisters(message: String) {
+        registerCallInFlight = false
+        val waiting = pendingRegisterResults.toList()
+        pendingRegisterResults.clear()
+        for (result in waiting) {
+            result.error("register_failed", message, null)
+        }
     }
 
     private fun connect(address: String?, result: MethodChannel.Result) {
@@ -464,6 +541,32 @@ class HidKeyboardManager(
         }
         if (device == null) {
             result.error("bad_address", "Laptop ka address ghalat hai.", null)
+            return
+        }
+        // Pairing hi nahi hui (ya laptop se remove ho gayi) to connect
+        // sirf waqt zaya karega — foran wazeh jawab do taake user pehle
+        // pair kare.
+        val bonded = try {
+            device.bondState == BluetoothDevice.BOND_BONDED
+        } catch (e: SecurityException) {
+            true // Check na ho saka to connect ki koshish jaari rakho.
+        }
+        if (!bonded) {
+            result.error(
+                "not_paired",
+                "Ye laptop is phone ke saath paired nahi hai. Pehle neeche wali guide se pair karo, phir CONNECT dabao.",
+                null
+            )
+            return
+        }
+        // Pehle se connected/connecting ho to dobara connect call ki
+        // zaroorat nahi — kuch phones par woh call false deti hai aur
+        // Dart use nakami samajh leta hai. Asal haalat callback dega.
+        if ((device == connectedDevice || device == targetDevice) &&
+            (connectionState == BluetoothProfile.STATE_CONNECTED ||
+                connectionState == BluetoothProfile.STATE_CONNECTING)
+        ) {
+            result.success(true)
             return
         }
         targetDevice = device

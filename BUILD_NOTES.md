@@ -49,8 +49,9 @@ snapshot, so a key can never stay stuck.
   (profile, settings, last laptop). Changing a setting mid-session first
   releases all keys.
 - **Safety (FR-28…FR-34):** all keys release on disconnect, app
-  background/pause (both Dart lifecycle *and* native `onPause` → zero report
-  + unregister), leaving the controller, and mode switch; on reconnect the
+  background/pause (both Dart lifecycle *and* native `onPause` → zero report;
+  registration intentionally survives pause since v1.1 — see QA_REPORT.md),
+  leaving the controller, and mode switch; on reconnect the
   first report is the clean state; disconnected = blocking overlay with
   Reconnect; controller is landscape + immersive + wake-locked while
   connected; Android Back asks "Disconnect karun?" before leaving; every

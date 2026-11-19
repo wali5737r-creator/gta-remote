@@ -175,12 +175,16 @@ class _ControllerScreenState extends State<ControllerScreen>
   Future<void> _onEnterExitTap() async {
     if (!_connected || _fTapInProgress) return;
     _fTapInProgress = true;
+    // Nishana PEHLE tay kar lo: darmiyan (130ms) me user mode pill dab
+    // de to ye tap mode ko dobara nahi palat-ti — warna layout game se
+    // desync ho jati hai, aur pill usi desync ki marammat ke liye hai.
+    final targetDriving = !_driving;
     _clearAllKeys();
     _setSourceKeys('ftap', {_settings.profile.enterExitKey});
     await Future<void>.delayed(const Duration(milliseconds: 130));
     if (!mounted) return;
     _setSourceKeys('ftap', const {});
-    _switchMode(!_driving);
+    _switchMode(targetDriving);
     _fTapInProgress = false;
   }
 
@@ -215,6 +219,11 @@ class _ControllerScreenState extends State<ControllerScreen>
   }
 
   Future<void> _openSettings() async {
+    // Settings par jane se pehle saari keys chhoro — dusri ungli se
+    // pedal dabaye hue Settings khul bhi jaye to koi key game me
+    // atki na rahe. (setState is liye ke RUN button ki roshni bhi
+    // foran bujh jaye.)
+    setState(() => _clearAllKeys());
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
     );

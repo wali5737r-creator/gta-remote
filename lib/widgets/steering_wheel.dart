@@ -72,6 +72,12 @@ class _SteeringWheelState extends State<SteeringWheel>
 
   @override
   void dispose() {
+    // Widget ghumti haalat me khatam ho raha ho to steering key chhor
+    // do — koi key kisi surat atak nahi sakti.
+    if (_currentKey != null) {
+      _currentKey = null;
+      widget.onSteeringKeyChanged(null);
+    }
     _springController.dispose();
     super.dispose();
   }

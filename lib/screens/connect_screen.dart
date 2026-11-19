@@ -22,7 +22,8 @@ class ConnectScreen extends StatefulWidget {
   State<ConnectScreen> createState() => _ConnectScreenState();
 }
 
-class _ConnectScreenState extends State<ConnectScreen> {
+class _ConnectScreenState extends State<ConnectScreen>
+    with WidgetsBindingObserver {
   final HidService _hid = HidService.instance;
   final SettingsService _settings = SettingsService.instance;
 
@@ -34,19 +35,41 @@ class _ConnectScreenState extends State<ConnectScreen> {
   String _statusText = 'Not connected';
   String? _errorText;
 
+  Timer? _autoRefreshTimer;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _settings.addListener(_onSettingsChanged);
     _refreshDevices();
+    // Pairing laptop par hoti hai aur phone app khuli rehti hai — koi
+    // "resume" event nahi aata. Is liye har chand second me khamoshi se
+    // dobara dekho, taake pairing mukammal hote hi laptop khud list me
+    // aa jaye (list na badli ho to UI update nahi hota).
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 4),
+      (_) => _refreshDevices(),
+    );
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _settings.removeListener(_onSettingsChanged);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Settings waghera se wapas aane par permission + list dobara dekho
+    // (masalan Settings se permission allow karke wapas aana).
+    if (state == AppLifecycleState.resumed) {
+      _refreshDevices();
+    }
   }
 
   void _onSettingsChanged() {
@@ -54,33 +77,66 @@ class _ConnectScreenState extends State<ConnectScreen> {
   }
 
   Future<void> _refreshDevices() async {
-    final granted = await _hid.hasPermissions();
-    if (!mounted) return;
-    setState(() => _permissionGranted = granted);
-    if (!granted) return;
-    // Keyboard PEHLE se register kar lo: laptop ko pairing ke waqt hi
-    // keyboard service nazar aani chahiye — agar pairing registration se
-    // pehle ho jaye to laptop keyboard dhoond hi nahi pata aur baad me
-    // HID connect fail ho jata hai.
-    unawaited(_hid.registerApp().catchError((Object _) => false));
-    final devices = await _hid.getBondedDevices();
-    if (!mounted) return;
-    setState(() {
-      _devices = devices;
-      // Aakhri istemal shuda laptop pehle se select rakho.
-      final last = _settings.lastDeviceAddress;
-      if (last != null && devices.any((device) => device.address == last)) {
-        _selectedAddress = last;
-      } else if (devices.length == 1) {
-        _selectedAddress = devices.first.address;
+    if (_busy) return; // Connect chal raha ho to darmiyan me na chhero.
+    try {
+      final granted = await _hid.hasPermissions();
+      if (!mounted) return;
+      if (granted != _permissionGranted) {
+        setState(() => _permissionGranted = granted);
       }
-    });
+      if (!granted) return;
+      // Keyboard PEHLE se register kar lo: laptop ko pairing ke waqt hi
+      // keyboard service nazar aani chahiye — agar pairing registration se
+      // pehle ho jaye to laptop keyboard dhoond hi nahi pata aur baad me
+      // HID connect fail ho jata hai.
+      unawaited(_hid.registerApp().catchError((Object _) => false));
+      final devices = await _hid.getBondedDevices();
+      if (!mounted) return;
+      final selectionValid = _selectedAddress != null &&
+          devices.any((device) => device.address == _selectedAddress);
+      if (_sameDevices(_devices, devices) && selectionValid) {
+        return; // Kuch nahi badla — flicker na karo.
+      }
+      setState(() {
+        _devices = devices;
+        if (!selectionValid) {
+          // Aakhri istemal shuda laptop pehle se select rakho. User ki
+          // apni selection kabhi khud nahi badalte.
+          final last = _settings.lastDeviceAddress;
+          if (last != null &&
+              devices.any((device) => device.address == last)) {
+            _selectedAddress = last;
+          } else if (devices.length == 1) {
+            _selectedAddress = devices.first.address;
+          } else {
+            _selectedAddress = null;
+          }
+        }
+      });
+    } catch (_) {
+      // Platform side se jawab na aye to screen khamosh na rahe.
+      if (!mounted) return;
+      setState(() {
+        _errorText =
+            'Bluetooth ki haalat nahi parhi ja saki. Thodi dair baad refresh (upar wala gol teer) dabao.';
+      });
+    }
+  }
+
+  bool _sameDevices(List<BondedDevice> a, List<BondedDevice> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].address != b[i].address || a[i].name != b[i].name) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// FR-2: system dialog se PEHLE plain-language explanation.
   Future<bool> _ensurePermissions() async {
     if (await _hid.hasPermissions()) {
-      setState(() => _permissionGranted = true);
+      if (mounted) setState(() => _permissionGranted = true);
       return true;
     }
     if (!mounted) return false;
@@ -107,23 +163,68 @@ class _ConnectScreenState extends State<ConnectScreen> {
     );
     if (agreed != true) return false;
     final granted = await _hid.requestPermissions();
-    if (mounted) {
-      setState(() => _permissionGranted = granted);
-      if (granted) _refreshDevices();
+    if (!mounted) return granted;
+    setState(() => _permissionGranted = granted);
+    if (granted) {
+      _refreshDevices();
+    } else {
+      // System dialog aye baghair inkaar = permission pehle se hamesha
+      // ke liye band hai ("dobara na pocho"). Ab Settings wala rasta hi
+      // bacha hai — warna "Allow Bluetooth" button hamesha gol gol
+      // ghumta rahega.
+      await _showPermissionSettingsDialog();
     }
     return granted;
+  }
+
+  /// Permission hamesha ke liye band ho to Settings ka rasta dikhao.
+  Future<void> _showPermissionSettingsDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Permission Settings se do'),
+        content: const Text(
+          'Bluetooth permission pehle se band hai, is liye system dialog '
+          'nahi aya.\n\n'
+          'Settings kholo → Permissions → Nearby devices → Allow karo. '
+          'Phir wapas aakar dobara koshish karo.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Baad me'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              try {
+                await _hid.openAppSettings();
+              } on PlatformException {
+                // Settings na khule to upar wale text me rasta likha hai.
+              }
+            },
+            child: const Text('Settings kholo'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _onConnectPressed() async {
     final address = _selectedAddress;
     if (address == null || _busy) return;
+    // Busy FORAN lagao — permission ke intezar ke darmiyan tez
+    // double-tap par do connect silsilay aik saath nahi chalte.
     setState(() {
+      _busy = true;
       _errorText = null;
       _statusText = 'Taiyari ho rahi hai…';
     });
 
     if (!await _ensurePermissions()) {
+      if (!mounted) return;
       setState(() {
+        _busy = false;
         _statusText = 'Not connected';
         _errorText =
             'Bluetooth permission ke baghair connect nahi ho sakta. Upar wala "Allow Bluetooth" button dabao.';
@@ -136,7 +237,6 @@ class _ConnectScreenState extends State<ConnectScreen> {
       orElse: () => BondedDevice(name: 'Laptop', address: address),
     );
 
-    setState(() => _busy = true);
     final error = await _hid.connectSequence(
       address,
       onStatus: (status) {
@@ -176,7 +276,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
     if (!mounted) return;
     setState(() {
       _statusText = started
-          ? 'Phone discoverable hai — ab laptop se pair karo (neeche wale steps).'
+          ? 'Phone 5 minute ke liye discoverable hai — ab laptop se pair karo (neeche wale steps). Waqt khatam ho jaye to ye button dobara dabana.'
           : 'Discoverable nahi ho saka. Dobara koshish karo.';
     });
   }

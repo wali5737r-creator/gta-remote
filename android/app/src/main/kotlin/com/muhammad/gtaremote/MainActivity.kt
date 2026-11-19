@@ -19,8 +19,10 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onPause() {
-        // App background me jaye to manager khud saari keys chhor kar
-        // unregister kar deta hai (safety).
+        // App background me jaye to manager saari keys chhor deta hai
+        // (zero report). Registration rehne deta hai — pairing ke system
+        // dialogs bhi pause karte hain, aur us waqt unregister karne se
+        // laptop ko pairing ke doran keyboard nazar nahi aata.
         hidManager?.onHostPause()
         super.onPause()
     }

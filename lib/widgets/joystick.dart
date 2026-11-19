@@ -66,6 +66,12 @@ class _WasdJoystickState extends State<WasdJoystick>
 
   @override
   void dispose() {
+    // Widget keys lagi haalat me khatam ho raha ho to chhor do —
+    // koi key kisi surat atak nahi sakti.
+    if (_currentKeys.isNotEmpty) {
+      _currentKeys = const {};
+      widget.onKeysChanged(const {});
+    }
     _returnController.dispose();
     super.dispose();
   }
