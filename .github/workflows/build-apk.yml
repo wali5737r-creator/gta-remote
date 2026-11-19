@@ -46,8 +46,7 @@ jobs:
           cp /tmp/build.gradle.kts android/app/build.gradle.kts
           cp /tmp/MainActivity.kt android/app/src/main/kotlin/com/muhammad/gtaremote/MainActivity.kt
           cp /tmp/HidKeyboardManager.kt android/app/src/main/kotlin/com/muhammad/gtaremote/HidKeyboardManager.kt
-          rm -rf android/app/src/main/res
-          cp -r /tmp/res-backup android/app/src/main/res
+          cp -r /tmp/res-backup/. android/app/src/main/res/
           rm -rf android/app/src/main/kotlin/com/muhammad/gta_remote
 
       - name: Packages lena
