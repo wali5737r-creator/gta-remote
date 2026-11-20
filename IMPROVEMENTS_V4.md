@@ -307,13 +307,27 @@ Grepped all of `lib/` and both Kotlin files for: `ho raha`,
   inline comments and the Kotlin class docs. Classified, not
   user-facing.
 
-### 3. Built-APK string check — executed post-build, pre-delivery
+### 3. Built-APK string check — ✅ PASS (run 44710774167)
 Procedure: unzip the CI artifact, run `strings` over
 `lib/*/libapp.so`, require STEERING, TILT, CONTROLLER, ARROWS,
 AIM, CROUCH and WPN present, plus "AB GTA" in the manifest and
-the package id unchanged. **Result is recorded in the v4
-delivery report; delivery is blocked unless this passes.**
-(Same method that verified CAMERA/ATTACK in the v3 APK.)
+the package id unchanged. (Same method that verified
+CAMERA/ATTACK in the v3 APK.)
+**Result (2026-11-20):** manifest shows app name "AB GTA" and
+package `com.muhammad.gtaremote` unchanged; libapp.so contains
+STEERING, TILT, CONTROLLER, ARROWS, CROUCH, CAMERA, ATTACK, and
+— with `strings -n 3` (3-char labels fall under the default
+minimum length) — AIM and WPN, both absent from the v3 APK as
+expected. "HANDBRAKE" is not stored as one contiguous string in
+either the v3 or v4 snapshot (BRAKE appears); same storage
+artefact in both builds, not a missing control. Launcher icons
+byte-identical to v3 (combined md5 227bc609651f929e367c3b2b79e09d5b
+for both APKs). APK size 47,994,850 bytes (~48 MB; v3 was
+47,945,698). First build attempt (run 44710055323, commit
+53eef19) failed on one compile error — `_TriggerButton` used
+HoldSurface without importing hold_surface.dart in
+controller_screen.dart; fixed in commit ade15d3, run 44710774167
+SUCCESS in 3m53s.
 
 ### 4. Numeric layout verification at 640×360 — ✅ PASS
 Common: top-bar chrome ends ≈51; CAMERA pad spans top 64 /
