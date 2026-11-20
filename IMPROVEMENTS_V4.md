@@ -415,3 +415,85 @@ unchanged Kotlin zero-report backstops beneath all of them.
    tap stands.
 7. **Device — English pass:** pairing guide, errors and help
    read naturally in English; banners show the right mode name.
+
+---
+
+## Buttons verification — every control, every gesture (owner: "every button must work properly")
+
+Method: each control was traced through the actual pointer handlers
+in its widget (all Listener-based widgets implement
+onPointerDown / onPointerUp / onPointerCancel — verified by grep
+across hold_surface, round_button, steer_arrows, analog_stick,
+camera_pad, joystick, steering_wheel and the screen-private
+_PillButton / _WeaponTickButton / _TriggerButton). Guarantees below
+rest on four shared mechanisms:
+
+- **G1 — Key union:** Dart keeps a SET of pressed keys; every report
+  is a full snapshot. Add/remove are idempotent — a double release
+  or a release-after-clear is a no-op, never a re-press.
+- **G2 — Mouse bits:** HidService composes mouse buttons as a bit
+  mask (bit0 LMB, bit1 RMB, bit2 MMB) behind a change guard;
+  setMouseButton(bit, down) touches only its own bit.
+- **G3 — Clear-all funnel:** mode switch, layout (DRIVING/ON FOOT)
+  switch, app pause, disconnect and dispose all call the same
+  _clearAllKeys() → releaseAllKeys path, which empties the key set,
+  zeroes all mouse bits, clears every steering source and calls
+  _resetArrows() (held flags + tail timers).
+- **G4 — Pointer capture:** a raw Listener that received the
+  pointer-down keeps receiving that pointer's up/cancel wherever
+  the finger ends up, so sliding off a control mid-press still
+  delivers its release. Each hold widget tracks ONE pointerId;
+  extra fingers on the same control are ignored.
+
+### Per-control traces
+
+| Control (layouts) | Tap | Hold | Release / slide-off | Rapid taps | Mid-press switch / Settings / pause / disconnect |
+|---|---|---|---|---|---|
+| BRAKE / RACE pedals (STEERING, TILT, ARROWS) | key (S/W) down+up, one snapshot each | key stays in union for the whole hold | up OR cancel fires release (G4); dispose also fires release | each pair = add+remove in the set, no counting, no stick (G1) | G3 empties the union before the new layout builds; old widget dispose re-release is a no-op (G1) |
+| RACE / BRAKE triggers (CONTROLLER) | same as pedals via _TriggerButton→HoldSurface | same | same | same | same |
+| HANDBRAKE (all driving) | Space pulse for the tap duration | Space held | up/cancel releases | idempotent set ops | G3 |
+| ENTER/EXIT (all layouts), MAP (all layouts) | exactly one 150 ms key pulse (F / Esc) via _momentaryKeyPress | holding the finger does NOT extend the pulse — still 150 ms | finger-up after the pulse = nothing left to release | 250 ms lockout swallows extra taps; lockout > pulse so pulses can never stack or overlap | G3 removes the key immediately even mid-pulse; the pulse timer later removing an absent key is a no-op (G1) |
+| Steering wheel (STEERING) | n/a (drag) | steer value feeds PWM source 'wheel' continuously | drag end/cancel reports steer 0 at once; dispose reports 0 if active | n/a | mode switch calls G3 → PWM sources cleared → A/D leave the union in the same snapshot |
+| TILT (sensor, no touch control) | n/a | sensor stream feeds PWM source 'tilt' | leaving TILT unsubscribes the sensor; G3 clears the source | n/a | STEERING→TILT→CONTROLLER hop verified in code: subscription starts only in TILT, stops on any exit, CONTROLLER/ARROWS never start it |
+| Analog stick (CONTROLLER) | flick = brief steer pulse through PWM | steer = dx/radius (dead zone 0.12, sensitivity applied) feeds PWM source 'stick' | release reports 0 IMMEDIATELY (spring-back is visual only); cancel same; dispose fires 0 if active | repeated flicks: each release re-zeroes, no residue | G3 clears 'stick' source; widget dispose also fires 0 (no-op after G3) |
+| ◀ ▶ arrows (ARROWS) | pulse guaranteed ≥90 ms: early finger-up arms a tail timer for the remainder, then releases | continuous steer via PWM source 'buttons' | up starts the tail logic; cancel treated as up; dispose fires held=false and cancels tail timers | tap-tap-tap: a re-press during the tail cancels the pending release and continues the same press — no flicker, no double pulse | _resetArrows() inside G3 cancels held flags AND tail timers, so no timer can fire a stray press into the next layout |
+| Both arrows together | — | both effective → source emptied = neither A nor D (cancel, per spec) | releasing one re-applies the other from the next _applyArrows pass | alternating fast taps resolve through the same effective-state function — last state wins, no stuck key | G3 via _resetArrows |
+| CAMERA pad (all layouts) | a tap moves nothing (movement only on drag) | drag sends mouse-move reports (~12 ms flush, ×2.2) | end/cancel stops the flush timer; the pad never sets a mouse button, so nothing can stick | n/a | pad holds no state across switches; G3 not even required for it |
+| Joystick (ON FOOT) | n/a (drag) | direction keys (W/A/S/D by angle) in the union while dragged | end/cancel/dispose releases its keys | n/a | G3; dispose releases again as no-op |
+| RUN toggle (ON FOOT) | tap toggles the profile's run key in/out of the union | n/a (toggle, not hold) | n/a | fast double-tap = on then off, ends OFF — matches the toggle label | any layout/mode switch resets the toggle via G3 (documented v3 behaviour; Settings help says so) |
+| JUMP (ON FOOT) | momentary 150 ms pulse (profile key), same helper as ENTER/EXIT | not extended by holding | nothing pending after the pulse | 250 ms lockout, no stacking | G3 mid-pulse safe (G1) |
+| ATTACK (ON FOOT) | LMB down+up | LMB held (bit0) | up/cancel clears bit0 only (G2) | each tap = one click pair | G3 zeroes ALL mouse bits |
+| AIM (ON FOOT, new) | RMB down+up | RMB held (bit1) | up/cancel clears bit1 only (G2) | each tap = one RMB pair | G3 zeroes all bits |
+| AIM + ATTACK together | — | both bits set in one mask — SA aim-while-firing works | releasing one keeps the other (bit independence, G2) | — | G3 zeroes both |
+| WPN ◀ ▶ (ON FOOT, new) | exactly one wheel tick (−1 / +1) | hold repeats: first repeat after 400 ms, then every 200 ms | up/cancel/dispose cancels BOTH timers — no trailing ticks | each tap = exactly one tick (tick fires on pointer-down) | wheel ticks are instantaneous reports (no held state), so a switch mid-hold leaves nothing stuck; timers die with the widget |
+| CROUCH (ON FOOT, new) | one 150 ms C pulse → SA toggles crouch | holding does not re-fire (lockout) | nothing pending after the pulse | lockout prevents machine-gun toggling | G3 mid-pulse safe |
+
+### Simultaneous multi-touch combinations traced
+
+- **Steer + RACE (any driving mode):** steering input (wheel /
+  stick / arrows / tilt) and the pedal are separate pointers /
+  sources; the PWM engine writes A/D while the pedal's HoldSurface
+  holds W — both appear in the same snapshot union. Releasing one
+  never touches the other.
+- **ATTACK while joystick held:** joystick drag pointer and ATTACK
+  Listener pointer are independent; keyboard and mouse are separate
+  HID reports, so firing never disturbs movement keys.
+- **AIM + ATTACK + joystick together:** three independent inputs;
+  mouse mask carries bits 0+1 while the union carries direction
+  keys. Any single release affects only its own channel.
+- **Arrows while a pedal is held:** arrow Listener and pedal
+  HoldSurface track different pointerIds; _applyArrows only writes
+  the 'buttons' steering source — pedal keys are never in its path.
+- **Camera drag + any hold:** the pad emits move-only reports with
+  the CURRENT button mask read from HidService, so dragging the
+  camera while holding AIM/ATTACK never drops the held button.
+
+### Findings from this pass
+
+- No stuck-key or stuck-button path found in any combination
+  above. No code changes resulted from this section; it confirms
+  the checklist-5 trace at gesture level.
+- One behaviour worth the owner's eye on device (not a defect):
+  ENTER/EXIT, MAP, JUMP and CROUCH pulses are fixed 150 ms even if
+  the finger stays down — by design from v3 (clean, non-repeating
+  presses), listed here so it is a decision, not a surprise.

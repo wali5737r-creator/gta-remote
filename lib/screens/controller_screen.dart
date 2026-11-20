@@ -13,6 +13,7 @@ import '../services/settings_service.dart';
 import '../widgets/analog_stick.dart';
 import '../widgets/camera_pad.dart';
 import '../widgets/car_pedal.dart';
+import '../widgets/hold_surface.dart';
 import '../widgets/joystick.dart';
 import '../widgets/premium_background.dart';
 import '../widgets/round_button.dart';
