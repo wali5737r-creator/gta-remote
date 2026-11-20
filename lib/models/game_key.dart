@@ -10,6 +10,9 @@ enum GameKey {
 
   /// GTA me gari me bethna / utarna.
   f(0x09, 'F'),
+
+  /// SA me crouch toggle (v4).
+  c(0x06, 'C'),
   space(0x2C, 'Space'),
   enter(0x28, 'Enter'),
   escape(0x29, 'Esc'),
@@ -39,6 +42,7 @@ const List<GameKey> hidKeyOrder = [
   GameKey.s,
   GameKey.d,
   GameKey.f,
+  GameKey.c,
   GameKey.space,
   GameKey.enter,
   GameKey.escape,

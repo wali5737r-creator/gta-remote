@@ -170,13 +170,14 @@ class HidService {
             break;
           case 'error':
             _update(_current.copyWith(
-              error: raw['message'] as String? ?? 'Kuch ghalat ho gaya.',
+              error: raw['message'] as String? ?? 'Something went wrong.',
             ));
             break;
         }
       },
       onError: (Object error) {
-        _update(_current.copyWith(error: 'Bluetooth state nahi mil saki.'));
+        _update(
+            _current.copyWith(error: 'Could not read the Bluetooth state.'));
       },
     );
   }
@@ -279,19 +280,19 @@ class HidService {
   }) async {
     try {
       if (!await isBluetoothEnabled()) {
-        onStatus?.call('Bluetooth on kiya ja raha hai…');
+        onStatus?.call('Turning Bluetooth on…');
         final enabled = await requestEnableBluetooth();
         if (!enabled) {
-          return 'Bluetooth band hai. Phone ki settings se Bluetooth on karke dobara koshish karo.';
+          return 'Bluetooth is off. Turn Bluetooth on in your phone settings, then try again.';
         }
       }
 
       if (!_current.registered) {
-        onStatus?.call('Register ho raha hai…');
+        onStatus?.call('Registering…');
         final registered = await registerApp()
             .timeout(const Duration(seconds: 10), onTimeout: () => false);
         if (!registered) {
-          return 'Registration nahi ho saki. Agar koi aur remote/keyboard app khuli hai to use band karke dobara koshish karo.';
+          return 'Registration failed. If another remote or keyboard app is open, close it and try again.';
         }
       }
 
@@ -300,21 +301,21 @@ class HidService {
         return null; // pehle se isi laptop se connected hai
       }
 
-      onStatus?.call('Connect ho raha hai…');
+      onStatus?.call('Connecting…');
       final accepted = await connect(address);
       if (!accepted) {
-        return 'Connect shuru nahi ho saka. Laptop ki Bluetooth on hai, ye check karo.';
+        return 'Could not start connecting. Check that Bluetooth is on on your laptop.';
       }
 
       // Haqiqi "connected" callback ka intezar.
       final connected = await _waitForConnection(address);
       if (!connected) {
         return _current.error ??
-            'Connect nahi ho saka. Laptop ki Bluetooth settings me ja kar is phone ko "Remove device" karo, phir app khuli rakh kar dobara pair karo aur CONNECT dabao.';
+            'Could not connect. In your laptop\'s Bluetooth settings, remove this phone ("Remove device"), then keep the app open, pair again and tap CONNECT.';
       }
       return null;
     } on PlatformException catch (error) {
-      return error.message ?? 'Bluetooth me kuch ghalat ho gaya.';
+      return error.message ?? 'Something went wrong with Bluetooth.';
     }
   }
 
@@ -399,6 +400,22 @@ class HidService {
     if (masked == _mouseButtons) return;
     _mouseButtons = masked;
     _sendMouseReport(0, 0, masked, 0);
+  }
+
+  /// Aik mouse button ko on/off karo, baqi buttons ki haalat
+  /// barqarar rakh kar (v4: ATTACK = left aur AIM = right aik
+  /// saath bhi dab sakte hain — aik ka chhutna dusre ko nahi
+  /// kaat-ta).
+  void setMouseButton(int bit, bool down) {
+    setMouseButtons(down ? (_mouseButtons | bit) : (_mouseButtons & ~bit));
+  }
+
+  /// Mouse wheel ka aik tick (v4: weapon switch). Wheel harkat
+  /// hai, haalat nahi — har call aik report jata hai, dabaye hue
+  /// buttons maujooda state ke saath.
+  void wheelTick(int direction) {
+    if (direction == 0) return;
+    _sendMouseReport(0, 0, _mouseButtons, direction.sign);
   }
 
   void _sendMouseReport(int dx, int dy, int buttons, int wheel) {

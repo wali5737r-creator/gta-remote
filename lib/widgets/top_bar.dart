@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../services/hid_service.dart';
+import '../services/settings_service.dart';
 import 'steer_mode_switch.dart';
 
 /// Controller screen ki top bar (Muhammad ki revised design):
 /// left = connection status pill, right = mode pill.
-/// Driving mode me beech me STEERING | TILT switch bhi aata hai (v2).
+/// Driving mode me beech me drive-mode switch bhi aata hai
+/// (v2: STEERING | TILT; v4: chaar modes).
 /// Mode pill sirf layout badalta hai — koi key nahi bhejta (FR-20).
 class ControllerTopBar extends StatelessWidget {
   const ControllerTopBar({
@@ -13,8 +15,8 @@ class ControllerTopBar extends StatelessWidget {
     required this.hidState,
     required this.driving,
     required this.onModeSelected,
-    this.tiltMode = false,
-    this.onSteerModeSelected,
+    this.driveMode = DriveMode.steering,
+    this.onDriveModeSelected,
   });
 
   final HidState hidState;
@@ -25,12 +27,12 @@ class ControllerTopBar extends StatelessWidget {
   /// Mode pill se layout tabdeeli (true = Driving, false = On Foot).
   final ValueChanged<bool> onModeSelected;
 
-  /// STEERING | TILT switch ki haalat — sirf driving me istemal hoti
+  /// Drive-mode switch ki haalat — sirf driving me istemal hoti
   /// hai, aur switch bhi sirf tabhi nazar aata hai.
-  final bool tiltMode;
+  final DriveMode driveMode;
 
-  /// true = TILT, false = STEERING. Null ho to switch nahi banta.
-  final ValueChanged<bool>? onSteerModeSelected;
+  /// Naya drive mode chuna gaya. Null ho to switch nahi banta.
+  final ValueChanged<DriveMode>? onDriveModeSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +46,11 @@ class ControllerTopBar extends StatelessWidget {
             child: _StatusPill(hidState: hidState),
           ),
         ),
-        if (driving && onSteerModeSelected != null) ...[
+        if (driving && onDriveModeSelected != null) ...[
           const SizedBox(width: 12),
           SteerModeSwitch(
-            tiltMode: tiltMode,
-            onSelected: onSteerModeSelected!,
+            mode: driveMode,
+            onSelected: onDriveModeSelected!,
           ),
         ],
         const SizedBox(width: 12),

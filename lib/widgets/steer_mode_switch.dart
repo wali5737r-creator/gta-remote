@@ -1,23 +1,30 @@
 import 'package:flutter/material.dart';
 
-/// Driving mode ka STEERING | TILT switch (v2) — top bar ke beech me.
+import '../services/settings_service.dart';
+
+/// Driving mode ka switch (v4) — top bar ke beech me:
+/// STEERING | TILT | CONTROLLER | ARROWS.
 ///
-/// Labels English hain (approved mockup tilt-design.html ke mutabiq),
+/// Labels English hain (approved mockup v4-modes.html ke mutabiq),
 /// active hissa garam orange gradient par safed text. Sirf driving
 /// mode me nazar aata hai; paidal mode me steering ka koi sawal hi
 /// nahi, is liye wahan chhupa rehta hai.
+///
+/// Chaar segments tang screens (640 dp) par bhi status/mode pills
+/// ke saath fit hon, is liye padding/font v2 ke 2-segment switch se
+/// halka sa compact hai — style bilkul wahi hai.
 class SteerModeSwitch extends StatelessWidget {
   const SteerModeSwitch({
     super.key,
-    required this.tiltMode,
+    required this.mode,
     required this.onSelected,
   });
 
-  /// True = TILT active, false = STEERING active.
-  final bool tiltMode;
+  /// Is waqt active drive mode.
+  final DriveMode mode;
 
-  /// true = TILT chuna, false = STEERING chuna.
-  final ValueChanged<bool> onSelected;
+  /// Naya mode chuna gaya.
+  final ValueChanged<DriveMode> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -32,12 +39,12 @@ class SteerModeSwitch extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _segment(
-            'STEERING',
-            active: !tiltMode,
-            onTap: () => onSelected(false),
-          ),
-          _segment('TILT', active: tiltMode, onTap: () => onSelected(true)),
+          for (final value in DriveMode.values)
+            _segment(
+              value.label,
+              active: mode == value,
+              onTap: () => onSelected(value),
+            ),
         ],
       ),
     );
@@ -53,7 +60,7 @@ class SteerModeSwitch extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
         decoration: BoxDecoration(
           gradient: active
               ? const LinearGradient(
@@ -75,9 +82,9 @@ class SteerModeSwitch extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 12.5,
+            fontSize: 11,
             fontWeight: FontWeight.w800,
-            letterSpacing: 2,
+            letterSpacing: 0.8,
             color: active ? Colors.white : const Color(0xFF9FB0C3),
           ),
         ),

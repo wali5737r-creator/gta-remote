@@ -10,11 +10,13 @@ import '../models/game_key.dart';
 import '../models/game_profile.dart';
 import '../services/hid_service.dart';
 import '../services/settings_service.dart';
+import '../widgets/analog_stick.dart';
 import '../widgets/camera_pad.dart';
 import '../widgets/car_pedal.dart';
 import '../widgets/joystick.dart';
 import '../widgets/premium_background.dart';
 import '../widgets/round_button.dart';
+import '../widgets/steer_arrows.dart';
 import '../widgets/steering_wheel.dart';
 import '../widgets/top_bar.dart';
 import 'settings_screen.dart';
@@ -25,9 +27,10 @@ import 'settings_screen.dart';
 /// tamam sources ka union hi HID report banta hai. Is design se koi key
 /// atak nahi sakti: source saaf = key gayi.
 ///
-/// Layout (Muhammad ki design, v2 — Racing Cockpit; v3 additions):
+/// Layout (Muhammad ki design, v2 — Racing Cockpit; v3/v4 additions):
 /// - Top bar: status pill (left) + mode pill (right); driving me
-///   beech me STEERING | TILT switch.
+///   beech me drive-mode switch (STEERING | TILT | CONTROLLER |
+///   ARROWS).
 /// - ENTER/EXIT CAR gol button pedals ke cluster ke UPAR, HANDBRAKE ke
 ///   saath — dono modes me bilkul wahi jagah.
 /// - Pedals: BRAKE pehla (left), RACE baad me (right).
@@ -38,6 +41,11 @@ import 'settings_screen.dart';
 ///   aur menu pointer; action row me MAP (Esc tap); paidal mode me
 ///   ATTACK (mouse left click, dabaye rakho). Steering ab PWM hai —
 ///   halka mor halki pulse deta hai, poora mor lagi hui key.
+/// - v4: CONTROLLER mode (gamepad stick + trigger buttons) aur
+///   ARROWS mode (tap wale steer buttons, minimum pulse ke saath) —
+///   dono khalis izafa hain, purane modes bilkul nahi badle. Paidal
+///   mode me AIM (mouse right, dabaye rakho), CROUCH (C tap) aur
+///   weapon switch (mouse wheel ticks) bhi jud gaye.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
 
@@ -62,10 +70,16 @@ class _ControllerScreenState extends State<ControllerScreen>
   bool _runOn = false;
   bool _fTapInProgress = false;
 
-  /// Steering ka tareeqa (sirf driving me): false = touch wheel
-  /// (STEERING), true = phone hilana (TILT). Settings se restore
-  /// hota hai aur switch se badalte hi wahan save ho jata hai.
-  bool _tiltMode = false;
+  /// Steering ka tareeqa (sirf driving me): touch wheel
+  /// (STEERING), phone hilana (TILT), analog stick (CONTROLLER)
+  /// ya tap wale buttons (ARROWS). Settings se restore hota hai
+  /// aur switch se badalte hi wahan save ho jata hai.
+  DriveMode _driveMode = DriveMode.steering;
+
+  /// Sirf TILT check karne ke liye asaan roop — tilt ki tamam
+  /// purani logic isi par chalti hai, aur woh sirf TILT mode me
+  /// hi sach hoti hai.
+  bool get _tiltMode => _driveMode == DriveMode.tilt;
 
   // --- Tilt steering (v2) ------------------------------------------------
 
@@ -159,6 +173,39 @@ class _ControllerScreenState extends State<ControllerScreen>
   /// mode switch wali lambi kahani _fTapInProgress se alag).
   DateTime? _lastFTapAt;
 
+  // --- Stick steering (v4, CONTROLLER mode) -------------------------------
+
+  /// Stick ki fixed dead zone (normalised) — is se chhota mor
+  /// steering nahi lagata. Settings wali dead zone sirf wheel ki
+  /// hai; stick ki ye apni tay shuda hadd hai.
+  static const double _stickDeadZone = 0.12;
+
+  /// Stick ki release hadd — engage se kam, taake hadd par mor
+  /// jhatkay na khaye (wheel/tilt wali hysteresis ki tarah).
+  static const double _stickRelease = 0.08;
+
+  // --- Arrows steering (v4, ARROWS mode) ----------------------------------
+  //
+  // ◀ ▶ buttons seedha A/D dabate hain (source 'buttons') — PWM
+  // nahi. Is mode ki jaan "aik tap = halki si move" hai: jaldi tap
+  // par bhi key kam az kam itni dair zaroor dabti hai, warna 20-30
+  // ms ka tap game tak aksar pahunchta hi nahi aur button murda
+  // lagta hai.
+
+  /// Tap ki minimum pulse — is se jaldi chhorne par bhi key kul
+  /// itni dair dabi rehti hai.
+  static const Duration _arrowMinPulse = Duration(milliseconds: 90);
+
+  /// Ungli asal me dabi hui hai ya nahi (left/right).
+  final Map<bool, bool> _arrowHeld = {true: false, false: false};
+
+  /// Har taraf ke press ki shuruaat ka waqt (minimum pulse ginne
+  /// ke liye).
+  final Map<bool, DateTime> _arrowPressedAt = {};
+
+  /// Minimum pulse poora karne ke intezar wale timers (left/right).
+  final Map<bool, Timer> _arrowTailTimers = {};
+
   /// Baseline itni dair ki readings ka ausat hota hai.
   static const Duration _tiltBaselineWindow = Duration(milliseconds: 300);
 
@@ -198,7 +245,7 @@ class _ControllerScreenState extends State<ControllerScreen>
     });
     if (_connected) WakelockPlus.enable();
     _settings.addListener(_onSettingsChanged);
-    _tiltMode = _settings.tiltSteering;
+    _driveMode = _settings.driveMode;
     // Pehle frame ke baad maujooda mode ka banner aik dafa dikhao —
     // user ko foran tasdeeq mil jati hai ke woh controller par hai
     // aur kis mode me hai (connect kamyab hone ka sab se wazeh ishara).
@@ -214,6 +261,10 @@ class _ControllerScreenState extends State<ControllerScreen>
     _bannerTimer?.cancel();
     _pwmTimer?.cancel();
     _pwmTimer = null;
+    for (final timer in _arrowTailTimers.values) {
+      timer.cancel();
+    }
+    _arrowTailTimers.clear();
     _stopTilt();
     _wheelAngle.dispose();
     _settings.removeListener(_onSettingsChanged);
@@ -282,6 +333,10 @@ class _ControllerScreenState extends State<ControllerScreen>
   void _clearAllKeys() {
     _keySources.clear();
     _runOn = false;
+    // ARROWS ki haalat bhi saaf — koi minimum-pulse timer purani
+    // key ko dobara nahi laga sakta. (Timers yahin cancel hote
+    // hain; sources upar saaf ho chuke hain.)
+    _resetArrows();
     // PWM engine bhi saaf — warna mode switch ke baad purani
     // steering pulse chalti rahegi. (Sources pehle saaf ho chuke
     // hain, is liye engine ko source-sync ki zaroorat nahi.)
@@ -401,7 +456,7 @@ class _ControllerScreenState extends State<ControllerScreen>
   /// hadd wheel ki purani degrees wali hisaab se hi aati hai
   /// (release = dead zone − min(2°, 35%)) — sirf normalised hai.
   void _feedWheelSteer(double angleDeg) {
-    if (!_driving || _tiltMode) return;
+    if (!_driving || _driveMode != DriveMode.steering) return;
     final range = _settings.steeringRangeDeg;
     final deadZone = _settings.deadZoneDeg;
     final releaseDeg = math.max(
@@ -418,13 +473,105 @@ class _ControllerScreenState extends State<ControllerScreen>
 
   /// Tilt ka delta (degrees) → normalised mor (poora mor = 45°).
   void _feedTiltSteer(double deltaDeg) {
-    if (!_driving || !_tiltMode) return;
+    if (!_driving || _driveMode != DriveMode.tilt) return;
     _setSteerInput(
       source: 'tilt',
       value: (deltaDeg / _tiltFullScaleDeg).clamp(-1.0, 1.0).toDouble(),
       engage: _tiltEngageDeg / _tiltFullScaleDeg,
       release: _tiltReleaseDeg / _tiltFullScaleDeg,
     );
+  }
+
+  /// Stick ka normalised mor → wahi PWM engine (v4). Sensitivity
+  /// lagti hai (wheel ki tarah multiplier), dead zone stick ki
+  /// apni fixed 0.12 hai — Settings ki range/dead zone is par
+  /// nahi lagti (woh wheel ki hain, Settings help me likha hai).
+  void _feedStickSteer(double steer) {
+    if (!_driving || _driveMode != DriveMode.controller) return;
+    _setSteerInput(
+      source: 'stick',
+      value: (steer * _settings.sensitivity.factor)
+          .clamp(-1.0, 1.0)
+          .toDouble(),
+      engage: _stickDeadZone,
+      release: _stickRelease,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Arrows steering (v4) — tap wale ◀ ▶ buttons
+  // ---------------------------------------------------------------------------
+
+  /// Arrow button ki haalat badli (widget se). [left] true = ◀.
+  ///
+  /// Dabane par key foran lagti hai. Chhorne par: press 90 ms se
+  /// kam raha ho to key baqi waqt tak lagi rehti hai (minimum
+  /// pulse), warna foran chhut-ti hai. Dono taraf aik saath lagi
+  /// hon to dono cancel — koi key nahi.
+  void _onArrowHeldChanged(bool left, bool held) {
+    if (!_driving || _driveMode != DriveMode.arrows) return;
+    if (held) {
+      // Dobara dabane par purani tail ka timer maar do — warna
+      // woh is press ko waqt se pehle kaat dega.
+      _arrowTailTimers[left]?.cancel();
+      _arrowTailTimers.remove(left);
+      _arrowHeld[left] = true;
+      _arrowPressedAt[left] = DateTime.now();
+    } else {
+      _arrowHeld[left] = false;
+      final pressedAt = _arrowPressedAt[left];
+      final elapsed = pressedAt == null
+          ? _arrowMinPulse
+          : DateTime.now().difference(pressedAt);
+      if (elapsed < _arrowMinPulse) {
+        // Minimum pulse baqi hai — key lagi rehne do, waqt poora
+        // hote hi _applyArrows dobara hisaab karega.
+        _arrowTailTimers[left]?.cancel();
+        _arrowTailTimers[left] = Timer(
+          _arrowMinPulse - elapsed,
+          () {
+            _arrowTailTimers.remove(left);
+            _applyArrows();
+          },
+        );
+      }
+    }
+    _applyArrows();
+  }
+
+  /// Aik taraf ki key asal me lagi honi chahiye ya nahi: ungli
+  /// dabi ho, ya minimum pulse ki tail abhi chal rahi ho.
+  bool _arrowEffective(bool left) =>
+      (_arrowHeld[left] ?? false) || _arrowTailTimers.containsKey(left);
+
+  /// Dono taraf ki haalat se 'buttons' source tay karo.
+  void _applyArrows() {
+    if (!_driving || _driveMode != DriveMode.arrows) return;
+    final leftOn = _arrowEffective(true);
+    final rightOn = _arrowEffective(false);
+    final profile = _settings.profile;
+    if (leftOn && rightOn) {
+      // Dono aik saath = cancel. Tail khatam hone par dusri
+      // taraf khud lag jayegi (uska timer _applyArrows bulayega).
+      _setSourceKeys('buttons', const {});
+    } else if (leftOn) {
+      _setSourceKeys('buttons', {profile.steerLeftKey});
+    } else if (rightOn) {
+      _setSourceKeys('buttons', {profile.steerRightKey});
+    } else {
+      _setSourceKeys('buttons', const {});
+    }
+  }
+
+  /// ARROWS ki saari haalat saaf (mode switch / clear-all par).
+  void _resetArrows() {
+    for (final timer in _arrowTailTimers.values) {
+      timer.cancel();
+    }
+    _arrowTailTimers.clear();
+    _arrowHeld[true] = false;
+    _arrowHeld[false] = false;
+    _arrowPressedAt.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -440,12 +587,18 @@ class _ControllerScreenState extends State<ControllerScreen>
     _doubleHaptic();
   }
 
-  /// Mode banner ka text. TILT ki purani pasand restore hui ho to
+  /// Mode banner ka text. Drive mode STEERING ke ilawa ho to
   /// driving banner me us ka zikr bhi — warna user wheel dhoondta
   /// rahega ke gayab kahan gaya.
-  String get _modeBannerText => _driving
-      ? (_tiltMode ? '🚗  DRIVING • TILT' : '🚗  DRIVING')
-      : '🚶  ON FOOT';
+  String get _modeBannerText {
+    if (!_driving) return '🚶  ON FOOT';
+    return switch (_driveMode) {
+      DriveMode.steering => '🚗  DRIVING',
+      DriveMode.tilt => '🚗  DRIVING • TILT',
+      DriveMode.controller => '🚗  DRIVING • CONTROLLER',
+      DriveMode.arrows => '🚗  DRIVING • ARROWS',
+    };
+  }
 
   /// Mode banner ~650ms ke liye dikhao (FR-21).
   void _showBanner(String text) {
@@ -466,20 +619,26 @@ class _ControllerScreenState extends State<ControllerScreen>
   // Tilt steering (v2) — phone hilane se steering
   // ---------------------------------------------------------------------------
 
-  /// STEERING | TILT switch: pehle saari keys chhoro, phir tareeqa
-  /// badlo aur choice yaad kar lo (agli dafa bhi yahi milega).
-  void _switchSteerMode(bool tilt) {
-    if (_tiltMode == tilt) return;
+  /// Drive-mode switch: pehle saari keys chhoro (clear-all path —
+  /// mouse buttons bhi usi se zero hote hain), phir tareeqa badlo
+  /// aur choice yaad kar lo (agli dafa bhi yahi milega). Tilt
+  /// sensor sirf TILT me chalta hai — baqi modes me
+  /// _updateTiltSubscription use band rakhta hai.
+  void _switchDriveMode(DriveMode mode) {
+    if (_driveMode == mode) return;
     _clearAllKeys();
-    setState(() => _tiltMode = tilt);
-    unawaited(_settings.setTiltSteering(tilt));
+    setState(() => _driveMode = mode);
+    unawaited(_settings.setDriveMode(mode));
     _updateTiltSubscription();
-    // Wheel achanak gayab/maujood hone par user ko foran pata chale
-    // ke hua kya hai — khaaskar TILT par, jahan steering ab ungli
-    // se nahi, phone hilane se hogi.
-    _showBanner(
-      tilt ? '📱  TILT — phone hilao' : '🎡  STEERING — ungli se ghumao',
-    );
+    // Layout achanak badalne par user ko foran pata chale ke hua
+    // kya hai — khaaskar TILT par, jahan steering ab ungli se
+    // nahi, phone hilane se hogi.
+    _showBanner(switch (mode) {
+      DriveMode.steering => '🎡  STEERING — turn with your finger',
+      DriveMode.tilt => '📱  TILT — tilt your phone',
+      DriveMode.controller => '🎮  CONTROLLER — steer with the stick',
+      DriveMode.arrows => '◀ ▶  ARROWS — tap for a small turn',
+    });
   }
 
   /// Tilt sensor sirf tab chale jab driving + TILT + connection
@@ -518,8 +677,8 @@ class _ControllerScreenState extends State<ControllerScreen>
         _stopTilt();
         if (mounted && _tiltMode) {
           _clearAllKeys();
-          setState(() => _tiltMode = false);
-          _showBanner('⚠ Tilt sensor nahi mila — STEERING on hai');
+          setState(() => _driveMode = DriveMode.steering);
+          _showBanner('⚠ Tilt sensor not found — STEERING is on');
         }
       },
     );
@@ -691,9 +850,9 @@ class _ControllerScreenState extends State<ControllerScreen>
     final shouldExit = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Disconnect karun?'),
+        title: const Text('Disconnect?'),
         content: const Text(
-          'Disconnect karke wapas jayen? Game me saari keys chhut jayengi.',
+          'Go back and disconnect? All keys in the game will be released.',
         ),
         actions: [
           TextButton(
@@ -789,12 +948,13 @@ class _ControllerScreenState extends State<ControllerScreen>
                           hidState: _hidState,
                           driving: _driving,
                           onModeSelected: _switchMode,
-                          tiltMode: _tiltMode,
-                          onSteerModeSelected: _switchSteerMode,
+                          driveMode: _driveMode,
+                          onDriveModeSelected: _switchDriveMode,
                         ),
                       ),
                       _buildModeContent(wheelSize, clusterScale),
-                      if (_driving && !_tiltMode) _buildAngleReadout(),
+                      if (_driving && _driveMode == DriveMode.steering)
+                        _buildAngleReadout(),
                       _buildGhostButtons(),
                       if (_bannerText != null) _buildBanner(),
                       if (!_connected) _buildDisconnectedOverlay(),
@@ -826,9 +986,15 @@ class _ControllerScreenState extends State<ControllerScreen>
         );
       },
       child: _driving
-          ? (_tiltMode
-              ? _buildTiltDrivingLayer(flip, clusterScale)
-              : _buildDrivingLayer(wheelSize, flip, clusterScale))
+          ? switch (_driveMode) {
+              DriveMode.steering =>
+                _buildDrivingLayer(wheelSize, flip, clusterScale),
+              DriveMode.tilt => _buildTiltDrivingLayer(flip, clusterScale),
+              DriveMode.controller =>
+                _buildControllerDrivingLayer(flip, clusterScale),
+              DriveMode.arrows =>
+                _buildArrowsDrivingLayer(flip, clusterScale),
+            }
           : _buildOnFootLayer(wheelSize, flip, clusterScale),
     );
   }
@@ -882,6 +1048,161 @@ class _ControllerScreenState extends State<ControllerScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// CONTROLLER mode ki driving layer (v4, approved mockup v4-3):
+  /// peeche halki gamepad silhouette, left par analog stick
+  /// (STEER), beech me CAMERA pad, right par RACE/BRAKE trigger
+  /// buttons aur un ke neeche EXIT CAR • MAP • HANDBRAKE wali
+  /// gol row. Purane modes se kuch nahi badla — ye alag layer hai.
+  Widget _buildControllerDrivingLayer(bool flip, double clusterScale) {
+    final profile = _settings.profile;
+    // Pad ki kinariyaan: stick wali taraf 34 + 148 (stick) + 12
+    // gap; cluster wali taraf 26 + 198 (sab se chauri row) + 12.
+    const stickSide = 194.0;
+    const clusterSide = 236.0;
+    return Stack(
+      key: const ValueKey('driving-controller'),
+      children: [
+        // Gamepad silhouette — sab se peeche, sirf dikhawa
+        // (IgnorePointer painter, touch is se guzar jata hai).
+        const Positioned(
+          left: 48,
+          right: 48,
+          top: 56,
+          bottom: 8,
+          child: CustomPaint(painter: _GamepadSilhouettePainter()),
+        ),
+        _buildCameraPad(
+          left: flip ? clusterSide : stickSide,
+          right: flip ? stickSide : clusterSide,
+        ),
+        Positioned(
+          left: flip ? null : 34,
+          right: flip ? 34 : null,
+          bottom: 16,
+          child: Transform.scale(
+            scale: clusterScale,
+            alignment: flip ? Alignment.bottomRight : Alignment.bottomLeft,
+            child: AnalogStick(
+              size: 148,
+              onSteerChanged: _feedStickSteer,
+            ),
+          ),
+        ),
+        Positioned(
+          left: flip ? 26 : null,
+          right: flip ? null : 26,
+          bottom: 16,
+          child: Transform.scale(
+            scale: clusterScale,
+            alignment: flip ? Alignment.bottomLeft : Alignment.bottomRight,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _raceTrigger(profile),
+                const SizedBox(height: 10),
+                _brakeTrigger(profile),
+                const SizedBox(height: 12),
+                _topActionRow(profile),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// ARROWS mode ki driving layer (v4, approved mockup v4-4):
+  /// left par do baray ◀ ▶ buttons (saaf gap ke saath), beech me
+  /// CAMERA pad, right par bilkul steering mode wala cluster
+  /// (action row + BRAKE/RACE pedals). Tap = halki si move
+  /// (minimum pulse), dabaye rakho = lagi hui steering.
+  Widget _buildArrowsDrivingLayer(bool flip, double clusterScale) {
+    final profile = _settings.profile;
+    // Pad ki kinariyaan: arrows wali taraf 30 + 88 + 16 + 88 +
+    // 12 gap; cluster wali taraf steering mode wali hi (236).
+    const arrowsSide = 234.0;
+    const clusterSide = 236.0;
+    final arrows = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ◀ hamesha pair ke left par — flip par pair dusri taraf
+        // jata hai, lekin teeron ki simt nahi palat-ti (warna
+        // steering ulti ho jayegi).
+        SteerArrowButton(
+          left: true,
+          onHeldChanged: (held) => _onArrowHeldChanged(true, held),
+        ),
+        const SizedBox(width: 16),
+        SteerArrowButton(
+          left: false,
+          onHeldChanged: (held) => _onArrowHeldChanged(false, held),
+        ),
+      ],
+    );
+    return Stack(
+      key: const ValueKey('driving-arrows'),
+      children: [
+        _buildCameraPad(
+          left: flip ? clusterSide : arrowsSide,
+          right: flip ? arrowsSide : clusterSide,
+        ),
+        Positioned(
+          left: flip ? null : 30,
+          right: flip ? 30 : null,
+          bottom: 84,
+          child: Transform.scale(
+            scale: clusterScale,
+            alignment: flip ? Alignment.bottomRight : Alignment.bottomLeft,
+            child: arrows,
+          ),
+        ),
+        Positioned(
+          left: flip ? 26 : null,
+          right: flip ? null : 26,
+          bottom: 16,
+          child: Transform.scale(
+            scale: clusterScale,
+            alignment: flip ? Alignment.bottomLeft : Alignment.bottomRight,
+            child: _buildDrivingCluster(profile),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// CONTROLLER mode ka RACE trigger — bara sabz hold button
+  /// (pedal wala hi behaviour, gamepad wali shakal).
+  Widget _raceTrigger(GameProfile profile) {
+    return _TriggerButton(
+      label: 'RACE',
+      subLabel: profile.accelerateKey.label,
+      gradientTop: const Color(0xFF22C55E),
+      gradientBottom: const Color(0xFF15803D),
+      borderColor: const Color(0xFF86EFAC),
+      glow: const Color(0xFF22C55E),
+      onHeldChanged: (held) {
+        _setSourceKeys('race', held ? {profile.accelerateKey} : const {});
+      },
+    );
+  }
+
+  /// CONTROLLER mode ka BRAKE trigger — RACE ke bilkul neeche,
+  /// laal hold button.
+  Widget _brakeTrigger(GameProfile profile) {
+    return _TriggerButton(
+      label: 'BRAKE',
+      subLabel: profile.brakeKey.label,
+      gradientTop: const Color(0xFFEF4444),
+      gradientBottom: const Color(0xFFB91C1C),
+      borderColor: const Color(0xFFFCA5A5),
+      glow: const Color(0xFFEF4444),
+      onHeldChanged: (held) {
+        _setSourceKeys('brake', held ? {profile.brakeKey} : const {});
+      },
     );
   }
 
@@ -987,6 +1308,29 @@ class _ControllerScreenState extends State<ControllerScreen>
           bottom: 26,
           child: joystick,
         ),
+        // Weapon switch (v4) — joystick ke upar wali khali jagah
+        // me chhoti si pair: ◀ pichla hathyar, ▶ agla (mouse wheel
+        // ke ticks). Joystick wali taraf hi rehti hai (flip par
+        // joystick ke saath dusri taraf), cluster se takrati nahi.
+        Positioned(
+          left: flip ? null : 44,
+          right: flip ? 44 : null,
+          top: 64,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _WeaponTickButton(
+                forward: false,
+                onTick: () => _hid.wheelTick(-1),
+              ),
+              const SizedBox(width: 8),
+              _WeaponTickButton(
+                forward: true,
+                onTick: () => _hid.wheelTick(1),
+              ),
+            ],
+          ),
+        ),
         Positioned(
           left: flip ? 26 : null,
           right: flip ? null : 26,
@@ -1057,6 +1401,8 @@ class _ControllerScreenState extends State<ControllerScreen>
   /// jata hai. Mouse button ki haalat HidService rakhta hai aur har
   /// safety path (mode switch, disconnect, pause, dispose) par
   /// zero hoti hai — click atak nahi sakta.
+  /// v4: setMouseButton se sirf apna bit badalta hai — AIM (right
+  /// button) aik saath daba ho to woh nahi kat-ta.
   Widget _attackButton() {
     return RoundButton(
       diameter: 80,
@@ -1066,8 +1412,45 @@ class _ControllerScreenState extends State<ControllerScreen>
       gradientBottom: const Color(0xFF7F1D1D),
       borderColor: const Color(0xFFFCA5A5),
       onHeldChanged: (held) {
-        _hid.setMouseButtons(held ? HidService.mouseButtonLeft : 0);
+        _hid.setMouseButton(HidService.mouseButtonLeft, held);
       },
+    );
+  }
+
+  /// AIM button (v4, sirf paidal mode) — mouse ka RIGHT button,
+  /// dabaye rakho. SA ki gunplay: AIM dabaye rakh kar ATTACK se
+  /// fire hota hai — dono mouse buttons HidService me alag bits
+  /// hain, aik saath dab sakte hain, aur har safety path par dono
+  /// zero hote hain (releaseAllKeys).
+  Widget _aimButton() {
+    return _PillButton(
+      width: 96,
+      height: 48,
+      label: 'AIM',
+      subLabel: 'Mouse R',
+      gradientTop: const Color(0xFF475569),
+      gradientBottom: const Color(0xFF1E293B),
+      borderColor: const Color(0xFF94A3B8),
+      onHeldChanged: (held) {
+        _hid.setMouseButton(HidService.mouseButtonRight, held);
+      },
+    );
+  }
+
+  /// CROUCH button (v4, sirf paidal mode) — C key ka aik saaf
+  /// tap. SA me C crouch toggle hai: aik tap = baithna, dusra
+  /// tap = khara hona. Is liye hold nahi, momentary press hai
+  /// (150 ms + lockout, JUMP/MAP wala hi helper).
+  Widget _crouchButton() {
+    return _PillButton(
+      width: 92,
+      height: 48,
+      label: 'CROUCH',
+      subLabel: GameKey.c.label,
+      gradientTop: const Color(0xFF4B5563),
+      gradientBottom: const Color(0xFF1F2937),
+      borderColor: const Color(0xFF9CA3AF),
+      onTap: () => _momentaryKeyPress('crouch', GameKey.c),
     );
   }
 
@@ -1170,6 +1553,18 @@ class _ControllerScreenState extends State<ControllerScreen>
               onTap: () =>
                   _momentaryKeyPress('jump', profile.jumpKey),
             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Teesri (secondary) row (v4): AIM + CROUCH — compact pill
+        // buttons. Row ki chauraai (200) pehli row (220) se kam
+        // hai, is liye CAMERA pad ki jagah bilkul nahi badli.
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _aimButton(),
+            const SizedBox(width: 12),
+            _crouchButton(),
           ],
         ),
       ],
@@ -1299,7 +1694,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Bluetooth kat gaya hai. Saari keys chhut gayi hain — gari apne aap nahi chalegi.',
+                  'Bluetooth disconnected. All keys have been released — the car will not drive on its own.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
                 ),
@@ -1324,7 +1719,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                           child: CircularProgressIndicator(strokeWidth: 2.5),
                         )
                       : const Icon(Icons.bluetooth_connected),
-                  label: Text(_reconnecting ? 'Connect ho raha…' : 'Reconnect'),
+                  label: Text(_reconnecting ? 'Connecting…' : 'Reconnect'),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFEA580C),
                     padding: const EdgeInsets.symmetric(
@@ -1335,7 +1730,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                 ),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Wapas — Connect screen'),
+                  child: const Text('Back — Connect screen'),
                 ),
               ],
             ),
@@ -1437,6 +1832,377 @@ class _RunToggleButtonState extends State<_RunToggleButton> {
       ),
     );
   }
+}
+
+/// CONTROLLER mode ka trigger button (v4) — chaura gol-kinara
+/// hold button, gamepad ke trigger jaisa (RACE/BRAKE).
+/// HoldSurface par banta hai — pedals wala hi capture behaviour:
+/// ungli slide ho jaye to bhi press nahi toot-ta.
+class _TriggerButton extends StatelessWidget {
+  const _TriggerButton({
+    required this.label,
+    required this.subLabel,
+    required this.gradientTop,
+    required this.gradientBottom,
+    required this.borderColor,
+    required this.glow,
+    required this.onHeldChanged,
+  });
+
+  final String label;
+  final String subLabel;
+  final Color gradientTop;
+  final Color gradientBottom;
+  final Color borderColor;
+  final Color glow;
+  final ValueChanged<bool> onHeldChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return HoldSurface(
+      onHeldChanged: (held) {
+        if (held) HapticFeedback.lightImpact();
+        onHeldChanged(held);
+      },
+      builder: (context, pressed) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOut,
+          transform: Matrix4.translationValues(0, pressed ? 2 : 0, 0),
+          width: 198,
+          height: 54,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [gradientTop, gradientBottom],
+            ),
+            border: Border.all(
+              color: borderColor,
+              width: pressed ? 3 : 2,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: glow.withValues(alpha: pressed ? 0.5 : 0.28),
+                blurRadius: pressed ? 24 : 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2.5,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                subLabel,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.75),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Compact pill button (v4) — paidal mode ki secondary row ke
+/// liye (AIM hold, CROUCH tap). RoundButton wala hi raw-pointer
+/// tareeqa: aik ungli ki malikiyat, dispose par khud release.
+class _PillButton extends StatefulWidget {
+  const _PillButton({
+    required this.width,
+    required this.height,
+    required this.label,
+    this.subLabel,
+    required this.gradientTop,
+    required this.gradientBottom,
+    required this.borderColor,
+    this.onTap,
+    this.onHeldChanged,
+  });
+
+  final double width;
+  final double height;
+  final String label;
+  final String? subLabel;
+  final Color gradientTop;
+  final Color gradientBottom;
+  final Color borderColor;
+  final VoidCallback? onTap;
+  final ValueChanged<bool>? onHeldChanged;
+
+  @override
+  State<_PillButton> createState() => _PillButtonState();
+}
+
+class _PillButtonState extends State<_PillButton> {
+  int? _pointer;
+  bool _pressed = false;
+
+  void _down(int pointer) {
+    if (_pointer != null) return;
+    _pointer = pointer;
+    setState(() => _pressed = true);
+    HapticFeedback.lightImpact();
+    if (widget.onHeldChanged != null) {
+      widget.onHeldChanged!(true);
+    } else {
+      widget.onTap?.call();
+    }
+  }
+
+  void _up(int pointer) {
+    if (pointer != _pointer) return;
+    _pointer = null;
+    setState(() => _pressed = false);
+    widget.onHeldChanged?.call(false);
+  }
+
+  @override
+  void dispose() {
+    if (_pressed) widget.onHeldChanged?.call(false);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (event) => _down(event.pointer),
+      onPointerUp: (event) => _up(event.pointer),
+      onPointerCancel: (event) => _up(event.pointer),
+      child: AnimatedScale(
+        scale: _pressed ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 90),
+        curve: Curves.easeOut,
+        child: Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [widget.gradientTop, widget.gradientBottom],
+            ),
+            border: Border.all(
+              color: widget.borderColor,
+              width: _pressed ? 3 : 2,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: widget.gradientBottom
+                    .withValues(alpha: _pressed ? 0.5 : 0.3),
+                blurRadius: _pressed ? 20 : 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                  color: Colors.white,
+                ),
+              ),
+              if (widget.subLabel != null) ...[
+                const SizedBox(width: 7),
+                Text(
+                  widget.subLabel!,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Weapon switch button (v4) — chhota sa ◀ / ▶, mouse wheel ka
+/// tick bhejta hai. Aik tap = aik tick (aik hathyar aage/peeche);
+/// dabaye rakho to pehle 400 ms baad har 200 ms par tick — kayi
+/// hathyar hon to list tezi se guzar jati hai. Chhorne/cancel/
+/// dispose par repeat khud band — koi timer latka nahi rehta.
+class _WeaponTickButton extends StatefulWidget {
+  const _WeaponTickButton({required this.forward, required this.onTick});
+
+  /// True = agla hathyar (▶), false = pichla (◀).
+  final bool forward;
+
+  /// Aik wheel tick bhejo.
+  final VoidCallback onTick;
+
+  @override
+  State<_WeaponTickButton> createState() => _WeaponTickButtonState();
+}
+
+class _WeaponTickButtonState extends State<_WeaponTickButton> {
+  int? _pointer;
+  bool _pressed = false;
+  Timer? _repeatTimer;
+
+  void _stopRepeat() {
+    _repeatTimer?.cancel();
+    _repeatTimer = null;
+  }
+
+  void _down(int pointer) {
+    if (_pointer != null) return;
+    _pointer = pointer;
+    setState(() => _pressed = true);
+    HapticFeedback.lightImpact();
+    widget.onTick();
+    _stopRepeat();
+    _repeatTimer = Timer(const Duration(milliseconds: 400), () {
+      _repeatTimer = Timer.periodic(
+        const Duration(milliseconds: 200),
+        (_) => widget.onTick(),
+      );
+    });
+  }
+
+  void _up(int pointer) {
+    if (pointer != _pointer) return;
+    _pointer = null;
+    _stopRepeat();
+    setState(() => _pressed = false);
+  }
+
+  @override
+  void dispose() {
+    _stopRepeat();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (event) => _down(event.pointer),
+      onPointerUp: (event) => _up(event.pointer),
+      onPointerCancel: (event) => _up(event.pointer),
+      child: AnimatedScale(
+        scale: _pressed ? 0.93 : 1.0,
+        duration: const Duration(milliseconds: 90),
+        curve: Curves.easeOut,
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF2A313B), Color(0xFF12161D)],
+            ),
+            border: Border.all(
+              color: _pressed
+                  ? const Color(0xFFF97316)
+                  : const Color(0xFF4B5563),
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                widget.forward ? '▶' : '◀',
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.0,
+                  color: Color(0xFFF59E0B),
+                ),
+              ),
+              const Text(
+                'WPN',
+                style: TextStyle(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// CONTROLLER mode ke peeche ki halki gamepad silhouette (v4,
+/// mockup v4-3) — aik bara gol-kinara wala khaka aur neeche dono
+/// taraf grip wale gol hisse. Sirf dikhawa hai: rang bohat halka,
+/// aur ye painter touch ko chhuta hi nahi (Positioned ke andar
+/// CustomPaint hit-test nahi karta, upar ke controls apni jagah
+/// par hain).
+class _GamepadSilhouettePainter extends CustomPainter {
+  const _GamepadSilhouettePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = const Color(0xFFF97316).withValues(alpha: 0.16);
+    final fill = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withValues(alpha: 0.025);
+
+    // Body — bohat gol kinaron wala bara khaka.
+    final body = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height * 0.88),
+      Radius.circular(size.height * 0.42),
+    );
+    canvas.drawRRect(body, fill);
+    canvas.drawRRect(body, stroke);
+
+    // Grips — neeche dono konon par gol ubhar (controller ke
+    // pakadne wale hisse), khake se halke se bahar tak.
+    final gripRadius = size.height * 0.30;
+    for (final cx in [size.width * 0.07, size.width * 0.93]) {
+      final grip = Rect.fromCircle(
+        center: Offset(cx, size.height * 0.86),
+        radius: gripRadius,
+      );
+      canvas.drawOval(grip, fill);
+      canvas.drawOval(grip, stroke);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// Neeche centre ke chhote translucent icon buttons.

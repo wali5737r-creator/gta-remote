@@ -397,3 +397,90 @@ Combo-device mouse acceptance in SA, camera sensitivity feel,
 PWM feel in both steer modes, lockout feel on ENTER/EXIT, ATTACK
 release on disconnect, swim turning with the pad. See
 IMPROVEMENTS_V3 "Must verify".
+
+---
+
+## v4 — CONTROLLER + ARROWS modes, on-foot gunplay controls, English UI (2026-11-20)
+
+Owner-approved mockups (`mockup/v4-modes.html`, screens v4-3 /
+v4-4 — "Han theek") plus an owner-ordered scope expansion: a full
+controller audit with any genuinely-needed controls added, and
+ALL in-app Roman Urdu converted to English. Full three-lens
+review + the owner-required pre-delivery verification checklist:
+`IMPROVEMENTS_V4.md` (0 critical / 0 major; 2 minors fixed
+pre-build; HORN evaluated and omitted with geometry proof).
+
+### Two new driving modes (pure additions)
+
+- **DriveMode enum** replaces the STEERING/TILT bool:
+  STEERING | TILT | CONTROLLER | ARROWS in the top-bar switch,
+  persisted as `drive_mode` (legacy `tilt_steering` bool migrated
+  on load and kept in sync on write). Switching runs the existing
+  clear-all path first; per-source mode guards block outgoing
+  layer feeds during the switch fade. Tilt sensor logic is
+  untouched and runs only in TILT. STEERING / TILT / ON FOOT
+  layouts and behaviour are byte-for-byte the v3 ones.
+- **CONTROLLER:** gamepad silhouette (static painter) behind a
+  148 dp analog stick (left, STEER caption as approved), the
+  CAMERA pad centre (210 dp wide at 640×360), and a right column
+  of RACE (green) / BRAKE (red) trigger hold buttons (198×54)
+  over the usual EXIT CAR • MAP • HANDBRAKE round row. The stick
+  feeds the v3 PWM engine as source `'stick'` — fixed dead zone
+  0.12 / release 0.08, Settings sensitivity applies, range and
+  dead-zone settings stay wheel-only. New widget:
+  `lib/widgets/analog_stick.dart`.
+- **ARROWS:** two 88 dp ◀ ▶ buttons (left, 16 dp gap), CAMERA
+  pad centre, the steering mode's exact cluster on the right.
+  Buttons drive A/D as source `'buttons'` — no PWM; a press
+  shorter than 90 ms is extended to a 90 ms minimum pulse (the
+  mode's whole point: one tap = slight move), hold = continuous,
+  both held = cancel. New widget: `lib/widgets/steer_arrows.dart`.
+- Flip controls mirrors both new layouts exactly like the old
+  ones (arrows keep ◀ on the pair's left — directions never
+  mirror).
+
+### On-foot audit additions
+
+- **AIM** (hold = mouse RIGHT) and **CROUCH** (C tap — SA
+  toggles crouch; momentary helper) as a compact third row in
+  the on-foot cluster (AIM 96×48 + CROUCH 92×48; cluster width
+  unchanged at 220, pad geometry untouched). ATTACK/AIM compose
+  via the new `HidService.setMouseButton(bit, down)` — neither
+  release clears the other; `releaseAllKeys` still zeroes both.
+- **Weapon switch:** ◀ ▶ WPN pair (48×48) in the free band
+  above the joystick (follows flip with the joystick), sending
+  mouse **wheel ticks** (`HidService.wheelTick`) — tap = one
+  weapon, hold = repeat after 400 ms every 200 ms. Wheel chosen
+  over Q/E: mouse-native in SA + GTA V, spends no keyboard
+  slots. `GameKey.c` (0x06) added; report bytes for sets
+  without C are identical to v3.
+- **HORN omitted deliberately:** a 4th action-row button (268
+  dp row) would cut the steering-mode CAMERA pad at 640×360
+  from 142 dp to 72 dp wide. Numbers in IMPROVEMENTS_V4.
+
+### English UI
+
+Every user-facing Roman Urdu string converted to plain English:
+connect screen (permission dialogs, pairing guide,
+troubleshooting card, status/errors), HID service progress +
+errors, controller banners + disconnect dialog/overlay, Settings
+labels + help (help also teaches the v4 modes/controls), and
+17 error strings in `HidKeyboardManager.kt`. Code comments stay
+Roman Urdu (developer notes, not UI). Verified by grep: zero
+Roman Urdu hits in string literals.
+
+### HID / re-pair
+
+**No re-pair needed.** The Kotlin diff vs v3 (b3ca393) is
+exactly 17 string-literal lines; the descriptor + SDP + QOS
+block md5 is identical (`ba778a379ab87a7f50ec5d2810479153`),
+channel method names identical, `MainActivity.kt` untouched.
+Dart-side, the only HID changes are additive (`setMouseButton`,
+`wheelTick`) over the v3 channel.
+
+### Not device-verified (owner's session decides)
+
+Stick feel + PWM proportionality from the stick, 90 ms arrow
+tap feel, AIM+ATTACK simultaneous hold in SA, wheel-tick weapon
+cycling, CROUCH toggle, English wording in the live pairing
+flow. See IMPROVEMENTS_V4 "Must verify".

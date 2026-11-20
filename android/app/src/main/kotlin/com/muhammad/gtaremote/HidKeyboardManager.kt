@@ -200,7 +200,7 @@ class HidKeyboardManager(
             // Intezar karne walo ko latka hua mat chhoro — warna agli
             // registration hamesha ke liye atak jayegi.
             failPendingRegisters(
-                "Bluetooth service band ho gayi. Bluetooth off karke dobara on karo, phir koshish karo."
+                "The Bluetooth service stopped. Turn Bluetooth off and on again, then try again."
             )
             emitAppStatus()
             emitConnection(null, BluetoothProfile.STATE_DISCONNECTED)
@@ -218,7 +218,7 @@ class HidKeyboardManager(
                 completePendingRegisters()
             } else {
                 failPendingRegisters(
-                    "Registration band ho gayi. Koi aur remote/keyboard app Bluetooth keyboard use kar rahi ho sakti hai — use band karke dobara koshish karo."
+                    "Registration stopped. Another remote or keyboard app may be using the Bluetooth keyboard — close it and try again."
                 )
             }
         }
@@ -279,7 +279,7 @@ class HidKeyboardManager(
                     activity.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
                     result.success(null)
                 } catch (e: Exception) {
-                    result.error("settings_failed", "Bluetooth settings nahi khul sakin.", null)
+                    result.error("settings_failed", "Could not open Bluetooth settings.", null)
                 }
             }
             "openAppSettings" -> {
@@ -299,7 +299,7 @@ class HidKeyboardManager(
                 } catch (e: Exception) {
                     result.error(
                         "settings_failed",
-                        "App settings nahi khul sakin. Phone ki Settings → Apps → AB GTA → Permissions se Bluetooth allow karo.",
+                        "Could not open app settings. Allow Bluetooth from your phone's Settings → Apps → AB GTA → Permissions.",
                         null
                     )
                 }
@@ -377,7 +377,7 @@ class HidKeyboardManager(
     private fun requestEnableBluetooth(result: MethodChannel.Result) {
         val adapter = bluetoothAdapter
         if (adapter == null) {
-            result.error("no_bluetooth", "Is phone me Bluetooth nahi hai.", null)
+            result.error("no_bluetooth", "This phone has no Bluetooth.", null)
             return
         }
         if (adapter.isEnabled) {
@@ -398,7 +398,7 @@ class HidKeyboardManager(
             pendingEnableResult = null
             result.error(
                 "enable_failed",
-                "Bluetooth on karne wali screen nahi khul saki. Phone ki Settings se Bluetooth on karke dobara koshish karo.",
+                "Could not open the Bluetooth turn-on screen. Turn Bluetooth on in your phone's Settings, then try again.",
                 null
             )
         }
@@ -406,7 +406,7 @@ class HidKeyboardManager(
 
     private fun makeDiscoverable(result: MethodChannel.Result) {
         if (bluetoothAdapter == null) {
-            result.error("no_bluetooth", "Is phone me Bluetooth nahi hai.", null)
+            result.error("no_bluetooth", "This phone has no Bluetooth.", null)
             return
         }
         if (pendingDiscoverableResult != null) {
@@ -423,7 +423,7 @@ class HidKeyboardManager(
             pendingDiscoverableResult = null
             result.error(
                 "discoverable_failed",
-                "Discoverable wali screen nahi khul saki. Dobara koshish karo.",
+                "Could not open the discoverable screen. Try again.",
                 null
             )
         }
@@ -490,7 +490,7 @@ class HidKeyboardManager(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             result.error(
                 "old_android",
-                "Bluetooth keyboard mode ke liye Android 9 ya naya chahiye.",
+                "Bluetooth keyboard mode needs Android 9 or newer.",
                 null
             )
             return
@@ -498,7 +498,7 @@ class HidKeyboardManager(
         if (!hasConnectPermission()) {
             result.error(
                 "no_permission",
-                "Bluetooth permission nahi mili. Pehle Allow karo.",
+                "Bluetooth permission not granted. Allow it first.",
                 null
             )
             return
@@ -536,7 +536,7 @@ class HidKeyboardManager(
         val proxy = hidDevice
         if (proxy == null) {
             failPendingRegisters(
-                "Bluetooth service tayyar nahi. Thodi dair baad dobara koshish karo."
+                "The Bluetooth service is not ready. Try again in a moment."
             )
             return
         }
@@ -549,7 +549,7 @@ class HidKeyboardManager(
         }
         if (!accepted) {
             failPendingRegisters(
-                "Registration shuru nahi ho saki. Koi aur remote app khuli ho to band karke dobara koshish karo."
+                "Could not start registration. If another remote app is open, close it and try again."
             )
         }
         // Kamyabi ka asal jawab onAppStatusChanged callback dega.
@@ -580,13 +580,13 @@ class HidKeyboardManager(
         if (proxy == null || !isRegistered) {
             result.error(
                 "not_registered",
-                "Pehle registration zaroori hai.",
+                "Registration is needed first.",
                 null
             )
             return
         }
         if (address.isNullOrBlank()) {
-            result.error("bad_address", "Laptop select nahi hua.", null)
+            result.error("bad_address", "No laptop selected.", null)
             return
         }
         val device = try {
@@ -595,7 +595,7 @@ class HidKeyboardManager(
             null
         }
         if (device == null) {
-            result.error("bad_address", "Laptop ka address ghalat hai.", null)
+            result.error("bad_address", "The laptop address is not valid.", null)
             return
         }
         // Pairing hi nahi hui (ya laptop se remove ho gayi) to connect
@@ -609,7 +609,7 @@ class HidKeyboardManager(
         if (!bonded) {
             result.error(
                 "not_paired",
-                "Ye laptop is phone ke saath paired nahi hai. Pehle neeche wali guide se pair karo, phir CONNECT dabao.",
+                "This laptop is not paired with this phone. Pair first using the guide below, then tap CONNECT.",
                 null
             )
             return
@@ -635,7 +635,7 @@ class HidKeyboardManager(
         } else {
             result.error(
                 "connect_failed",
-                "Connect shuru nahi ho saka. Laptop ki Bluetooth on hai, ye check karo.",
+                "Could not start connecting. Check that Bluetooth is on on your laptop.",
                 null
             )
         }

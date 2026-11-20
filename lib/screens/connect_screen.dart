@@ -133,7 +133,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       if (!mounted) return;
       setState(() {
         _errorText =
-            'Bluetooth ki haalat nahi parhi ja saki. Thodi dair baad refresh (upar wala gol teer) dabao.';
+            'Could not read the Bluetooth state. Wait a moment, then tap refresh (the round arrow at the top).';
       });
     }
   }
@@ -162,9 +162,9 @@ class _ConnectScreenState extends State<ConnectScreen>
       builder: (dialogContext) => AlertDialog(
         title: const Text('Bluetooth permission'),
         content: const Text(
-          'AB GTA ko Bluetooth permission chahiye taake ye tumhare '
-          'laptop se connect ho sakay.\n\n'
-          'Koi internet use nahi hota, aur koi data kahin nahi jata.',
+          'AB GTA needs Bluetooth permission so it can connect to '
+          'your laptop.\n\n'
+          'No internet is used, and no data goes anywhere.',
         ),
         actions: [
           TextButton(
@@ -173,7 +173,7 @@ class _ConnectScreenState extends State<ConnectScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Samajh gaya — Allow karo'),
+            child: const Text('Got it — Allow'),
           ),
         ],
       ),
@@ -199,17 +199,17 @@ class _ConnectScreenState extends State<ConnectScreen>
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Permission Settings se do'),
+        title: const Text('Give permission from Settings'),
         content: const Text(
-          'Bluetooth permission pehle se band hai, is liye system dialog '
-          'nahi aya.\n\n'
-          'Settings kholo → Permissions → Nearby devices → Allow karo. '
-          'Phir wapas aakar dobara koshish karo.',
+          'Bluetooth permission is switched off, so the system dialog '
+          'did not appear.\n\n'
+          'Open Settings → Permissions → Nearby devices → Allow. '
+          'Then come back and try again.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Baad me'),
+            child: const Text('Later'),
           ),
           FilledButton(
             onPressed: () async {
@@ -220,7 +220,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 // Settings na khule to upar wale text me rasta likha hai.
               }
             },
-            child: const Text('Settings kholo'),
+            child: const Text('Open Settings'),
           ),
         ],
       ),
@@ -235,7 +235,7 @@ class _ConnectScreenState extends State<ConnectScreen>
     setState(() {
       _busy = true;
       _errorText = null;
-      _statusText = 'Taiyari ho rahi hai…';
+      _statusText = 'Getting ready…';
     });
 
     if (!await _ensurePermissions()) {
@@ -244,7 +244,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         _busy = false;
         _statusText = 'Not connected';
         _errorText =
-            'Bluetooth permission ke baghair connect nahi ho sakta. Upar wala "Allow Bluetooth" button dabao.';
+            'Cannot connect without Bluetooth permission. Tap the "Allow Bluetooth" button above.';
       });
       return;
     }
@@ -293,8 +293,8 @@ class _ConnectScreenState extends State<ConnectScreen>
     if (!mounted) return;
     setState(() {
       _statusText = started
-          ? 'Phone 5 minute ke liye discoverable hai — ab laptop se pair karo (neeche wale steps). Waqt khatam ho jaye to ye button dobara dabana.'
-          : 'Discoverable nahi ho saka. Dobara koshish karo.';
+          ? 'Your phone is discoverable for 5 minutes — now pair from your laptop (steps below). If the time runs out, tap this button again.'
+          : 'Could not become discoverable. Try again.';
     });
   }
 
@@ -329,7 +329,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                         !_busy) ...[
                       const SizedBox(height: 10),
                       const Text(
-                        'Pehle upar se apna laptop select karo, phir CONNECT dabao.',
+                        'Select your laptop above first, then tap CONNECT.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
@@ -403,7 +403,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Konsi game kheloge?',
+          'Which game will you play?',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -430,7 +430,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         Row(
           children: [
             const Text(
-              'Tumhara laptop',
+              'Your laptop',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -444,7 +444,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 size: 20,
                 color: Color(0xFF94A3B8),
               ),
-              tooltip: 'Dobara dekho',
+              tooltip: 'Refresh',
               onPressed: _refreshDevices,
             ),
           ],
@@ -454,7 +454,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         else if (_devices.isEmpty)
           const _InfoCard(
             text:
-                'Koi paired laptop nahi mila. Pehle neeche wali guide se laptop ke saath pair karo, phir yahan wapas aao.',
+                'No paired laptop found. First pair with your laptop using the guide below, then come back here.',
           )
         else
           for (final device in _devices)
@@ -559,7 +559,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Pehli dafa? Pair aise karo:',
+            'First time? Pair like this:',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -570,21 +570,21 @@ class _ConnectScreenState extends State<ConnectScreen>
           const _GuideStep(
             number: 1,
             text:
-                'Neeche wala button dabao — phone laptop ko nazar aane lagega.',
+                'Tap the button below — your phone will become visible to the laptop.',
           ),
           const _GuideStep(
             number: 2,
             text:
-                'Laptop par: Settings → Bluetooth & devices → Add device → Bluetooth.',
+                'On your laptop: Settings → Bluetooth & devices → Add device → Bluetooth.',
           ),
           const _GuideStep(
             number: 3,
             text:
-                'Apna phone select karo. Code aye to dono screens par Yes/Connect dabao.',
+                'Select your phone. If a code appears, tap Yes/Connect on both screens.',
           ),
           const _GuideStep(
             number: 4,
-            text: 'Yahan wapas aakar apna laptop select karo aur CONNECT dabao.',
+            text: 'Come back here, select your laptop and tap CONNECT.',
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -592,7 +592,7 @@ class _ConnectScreenState extends State<ConnectScreen>
             child: OutlinedButton.icon(
               onPressed: _busy ? null : _makeDiscoverable,
               icon: const Icon(Icons.bluetooth_searching, size: 19),
-              label: const Text('Phone ko discoverable banao'),
+              label: const Text('Make phone discoverable'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFFFB923C),
                 side: const BorderSide(color: Color(0xFFC2410C)),
@@ -624,7 +624,7 @@ class _ConnectScreenState extends State<ConnectScreen>
           iconColor: Color(0xFFFB923C),
           collapsedIconColor: Color(0xFF94A3B8),
           title: Text(
-            'Masla aa raha hai? Ye check karo',
+            'Having trouble? Check these',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -633,27 +633,26 @@ class _ConnectScreenState extends State<ConnectScreen>
           ),
           children: [
             _HelpPoint(
-              'Connect fail ho raha hai? Laptop ki Bluetooth settings me '
-              'is phone ko "Remove device" karo, phir is app ko khula '
-              'rakh kar dobara pair karo — purani pairing aksar kharab '
-              'hoti hai.',
+              'Connection keeps failing? In your laptop\'s Bluetooth '
+              'settings, remove this phone ("Remove device"), then keep '
+              'this app open and pair again — old pairings often go bad.',
             ),
             _HelpPoint(
-              'Laptop par Bluetooth ON hai? Aur "Add device" wala page '
-              'khula rakho jab phone discoverable karo.',
+              'Is Bluetooth ON on your laptop? And keep the "Add device" '
+              'page open while you make the phone discoverable.',
             ),
             _HelpPoint(
-              'Koi dusri remote ya keyboard app (masalan PC Remote) band '
-              'kar do — aik waqt me sirf aik app Bluetooth keyboard ban '
-              'sakti hai.',
+              'Close any other remote or keyboard app (for example PC '
+              'Remote) — only one app can be a Bluetooth keyboard at a '
+              'time.',
             ),
             _HelpPoint(
-              'Phone aur laptop paas paas rakho. Phir bhi na ho to dono '
-              'ka Bluetooth aik dafa off karke on karo.',
+              'Keep the phone and laptop close together. Still not '
+              'working? Turn Bluetooth off and on again on both.',
             ),
             _HelpPoint(
-              'Connection bar bar kat-ta hai? Phone Settings → Apps → '
-              'AB GTA → Battery → Unrestricted kar do.',
+              'Connection keeps dropping? Phone Settings → Apps → '
+              'AB GTA → Battery → set it to Unrestricted.',
             ),
           ],
         ),
@@ -838,7 +837,7 @@ class _DeviceCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: const Text(
-                    'Aakhri laptop',
+                    'Last laptop',
                     style: TextStyle(
                       fontSize: 11.5,
                       color: Color(0xFFFCD34D),
@@ -885,7 +884,7 @@ class _PermissionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Bluetooth permission chahiye',
+            'Bluetooth permission needed',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -894,7 +893,7 @@ class _PermissionCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           const Text(
-            'Laptop ki list dekhne aur connect karne ke liye pehle Bluetooth permission do. Koi internet use nahi hota.',
+            'Give Bluetooth permission first, to see the laptop list and connect. No internet is used.',
             style: TextStyle(fontSize: 13.5, color: Color(0xFF94A3B8)),
           ),
           const SizedBox(height: 11),
