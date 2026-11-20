@@ -34,8 +34,10 @@ class CarPedal extends StatelessWidget {
 
   final ValueChanged<bool> onHeldChanged;
 
-  double get _padWidth => tall ? 78 : 114;
-  double get _padHeight => tall ? 148 : 96;
+  // v3: pads ~15% chhote — v2 ke size par pedals aik dusre ke bohat
+  // qareeb lagte the aur screen par bheed thi.
+  double get _padWidth => tall ? 66 : 97;
+  double get _padHeight => tall ? 126 : 82;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +55,7 @@ class CarPedal extends StatelessWidget {
               angle: 0.10,
               child: Container(
                 width: 11,
-                height: 30,
+                height: 26,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     begin: Alignment.centerLeft,

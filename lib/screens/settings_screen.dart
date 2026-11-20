@@ -176,6 +176,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'phone ko left/right hilane se gari murti hai. '
                       'Upar wali steering settings (range, sensitivity, '
                       'dead zone) sirf touch wheel ke liye hain.'),
+                  _HelpLine('Beech wala CAMERA pad mouse hai — ungli '
+                      'ghumane se game ka camera ghumta hai, swimming '
+                      'ki simt bhi isi se badalti hai (RUN on rakho to '
+                      'tez tairta hai). MAP button map/pause menu '
+                      'kholta hai; paidal mode me ATTACK button mouse '
+                      'ka click hai — larai ke liye use dabaye rakho.'),
                   _HelpLine('Sab kuch free hai — koi ads nahi, koi time '
                       'limit nahi, internet ki zaroorat nahi.'),
                 ],

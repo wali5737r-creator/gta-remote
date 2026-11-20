@@ -10,6 +10,7 @@ import '../models/game_key.dart';
 import '../models/game_profile.dart';
 import '../services/hid_service.dart';
 import '../services/settings_service.dart';
+import '../widgets/camera_pad.dart';
 import '../widgets/car_pedal.dart';
 import '../widgets/joystick.dart';
 import '../widgets/premium_background.dart';
@@ -20,11 +21,11 @@ import 'settings_screen.dart';
 
 /// Controller screen — Driving aur On Foot dono modes.
 ///
-/// Har control apni keys ka "source" rakhta hai (wheel, race, joystick…);
+/// Har control apni keys ka "source" rakhta hai (race, joystick, pwm…);
 /// tamam sources ka union hi HID report banta hai. Is design se koi key
 /// atak nahi sakti: source saaf = key gayi.
 ///
-/// Layout (Muhammad ki design, v2 — Racing Cockpit):
+/// Layout (Muhammad ki design, v2 — Racing Cockpit; v3 additions):
 /// - Top bar: status pill (left) + mode pill (right); driving me
 ///   beech me STEERING | TILT switch.
 /// - ENTER/EXIT CAR gol button pedals ke cluster ke UPAR, HANDBRAKE ke
@@ -33,6 +34,10 @@ import 'settings_screen.dart';
 /// - TILT mode me wheel nahi hota: BRAKE neeche-left, RACE
 ///   neeche-right, aur steering phone hilane se hoti hai.
 /// - Wheel ke neeche koi caption text nahi.
+/// - v3: beech me CAMERA pad (HID mouse) — camera, swimming ki simt
+///   aur menu pointer; action row me MAP (Esc tap); paidal mode me
+///   ATTACK (mouse left click, dabaye rakho). Steering ab PWM hai —
+///   halka mor halki pulse deta hai, poora mor lagi hui key.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
 
@@ -79,7 +84,7 @@ class _ControllerScreenState extends State<ControllerScreen>
   DateTime? _tiltBaseStart;
 
   /// Phone flat hone ka waqt — itni dair flat rahe to lagi hui
-  /// tilt key chhor dete hain (koi key atak nahi sakti).
+  /// tilt steering chhor dete hain (koi key atak nahi sakti).
   DateTime? _tiltFlatSince;
 
   /// Low-pass smoothing ke baad ki gravity (phone ke x/y axes par).
@@ -87,15 +92,72 @@ class _ControllerScreenState extends State<ControllerScreen>
   double _tiltSmoothY = 0;
   bool _tiltHasSmooth = false;
 
-  /// Tilt se is waqt lagi hui steering key (source 'tilt').
-  GameKey? _tiltKey;
-
-  /// Itne degrees se zyada jhukao par key lagti hai…
+  /// Itne degrees se zyada jhukao par steering lagti hai…
   static const double _tiltEngageDeg = 12;
 
   /// …aur itne se kam par chhut-ti hai (hysteresis — wheel ki tarah,
   /// taake hadd par key jhatkay na khaye).
   static const double _tiltReleaseDeg = 8;
+
+  /// Tilt ka poora mor (full lock) itne degrees par — PWM engine ke
+  /// normalised hisaab ke liye (engage 12° → 12/45, release 8° → 8/45).
+  static const double _tiltFullScaleDeg = 45;
+
+  // --- PWM steering engine (v3) ------------------------------------------
+  //
+  // v2 me steering seedha on/off thi: chhota sa mor bhi A/D ko poora
+  // daba deta tha — "thora sa move kro to gari puri move hojti".
+  // Ab wheel/tilt sirf normalised mor (−1..+1) dete hain; ye engine
+  // use A/D ki pulses me badalta hai: 100 ms ki window me key-down
+  // waqt = 25 ms + 75 ms × duty, jahan duty dead zone ke baad ke
+  // mor ke hisaab se hai. Duty ≥ 0.98 par key lagi rehti hai.
+  // Engine har 20 ms tick karta hai; window ka hisaab error
+  // diffusion se bant-ta hai taake lambay arsay ka duty bilkul
+  // wahi rahe jo formula kehta hai.
+
+  /// Kaun sa steering source active hai: 'wheel' | 'tilt' | null.
+  String? _steerSourceId;
+
+  /// Normalised mor: −1 (poora left) .. +1 (poora right).
+  double _steerValue = 0;
+
+  /// Normalised dead zone (lagne ki hadd) aur chhutne ki hadd —
+  /// active source ke hisaab se (wheel: deadZone/range, tilt: 12/45).
+  double _steerEngageN = 0;
+  double _steerReleaseN = 0;
+
+  /// Engine is waqt kis simt ki key chala raha hai (left/right/null).
+  GameKey? _pwmDirectionKey;
+
+  /// HID report me is waqt asal lagi hui PWM key (pulses ke saath
+  /// badalti hai) — source 'pwm'.
+  GameKey? _pwmAppliedKey;
+
+  /// Error-diffusion ka jama hisaab (window ki duty bantne ke liye).
+  double _pwmAccumulator = 0;
+
+  Timer? _pwmTimer;
+
+  // --- Momentary (tap) keys (v3) ------------------------------------------
+
+  /// Tap wali key itni dair dabi rehti hai — aik saaf, poora press.
+  static const Duration _tapPressDuration = Duration(milliseconds: 150);
+
+  /// Aik tap ke baad itni dair dusra tap nazarandaz — double-fire
+  /// nahi hota (ENTER/EXIT ke "ulta kaam" wali shikayat ka aik sabab
+  /// yahi tha: do tap = andar + bahar, ulta asar).
+  static const Duration _tapLockoutDuration = Duration(milliseconds: 250);
+
+  /// Jin tap ids par abhi lockout chal raha hai.
+  final Set<String> _tapLockouts = {};
+
+  /// Har tap id ki nasal (generation) — purana delayed release naye
+  /// press ki key ko galti se nahi kaat sakta.
+  final Map<String, int> _tapGenerations = {};
+
+  /// Aakhri ENTER/EXIT tap ka waqt (us ki apni lockout ke liye —
+  /// mode switch wali lambi kahani _fTapInProgress se alag).
+  DateTime? _lastFTapAt;
 
   /// Baseline itni dair ki readings ka ausat hota hai.
   static const Duration _tiltBaselineWindow = Duration(milliseconds: 300);
@@ -150,6 +212,8 @@ class _ControllerScreenState extends State<ControllerScreen>
   @override
   void dispose() {
     _bannerTimer?.cancel();
+    _pwmTimer?.cancel();
+    _pwmTimer = null;
     _stopTilt();
     _wheelAngle.dispose();
     _settings.removeListener(_onSettingsChanged);
@@ -218,7 +282,149 @@ class _ControllerScreenState extends State<ControllerScreen>
   void _clearAllKeys() {
     _keySources.clear();
     _runOn = false;
+    // PWM engine bhi saaf — warna mode switch ke baad purani
+    // steering pulse chalti rahegi. (Sources pehle saaf ho chuke
+    // hain, is liye engine ko source-sync ki zaroorat nahi.)
+    _resetSteerEngine(syncSource: false);
     _hid.releaseAllKeys();
+  }
+
+  // ---------------------------------------------------------------------------
+  // PWM steering engine (v3)
+  // ---------------------------------------------------------------------------
+
+  /// Steering source (wheel ya tilt) apna normalised mor de.
+  /// [engage]/[release] usi source ki normalised haddein hain.
+  void _setSteerInput({
+    required String source,
+    required double value,
+    required double engage,
+    required double release,
+  }) {
+    _steerSourceId = source;
+    _steerValue = value;
+    _steerEngageN = engage;
+    _steerReleaseN = release;
+    _pwmTimer ??= Timer.periodic(
+      const Duration(milliseconds: 20),
+      (_) => _pwmTick(),
+    );
+  }
+
+  /// Engine ko poora band/saaf karo. [syncSource] true ho to 'pwm'
+  /// source bhi union se nikalta hai (masalan tilt rukte waqt, jab
+  /// baqi sources abhi zinda hain); _clearAllKeys me sources pehle
+  /// hi saaf hote hain, wahan false rakho.
+  void _resetSteerEngine({bool syncSource = true}) {
+    _steerSourceId = null;
+    _steerValue = 0;
+    _pwmDirectionKey = null;
+    _pwmAccumulator = 0;
+    _pwmTimer?.cancel();
+    _pwmTimer = null;
+    if (_pwmAppliedKey != null) {
+      _pwmAppliedKey = null;
+      if (syncSource) _setSourceKeys('pwm', const {});
+    }
+  }
+
+  /// Har 20 ms: maujooda mor se simt tay karo (hysteresis ke saath),
+  /// phir duty ke hisaab se is tick par key dabani hai ya nahi.
+  void _pwmTick() {
+    if (_steerSourceId == null || !_driving) {
+      _setPwmKey(null);
+      return;
+    }
+    final profile = _settings.profile;
+    final left = profile.steerLeftKey;
+    final right = profile.steerRightKey;
+    final s = _steerValue;
+    final engage = _steerEngageN;
+    final release = _steerReleaseN;
+
+    GameKey? direction = _pwmDirectionKey;
+    if (direction == right) {
+      if (s < -engage) {
+        direction = left; // seedha dusri simt
+      } else if (s <= release) {
+        direction = null;
+      }
+    } else if (direction == left) {
+      if (s > engage) {
+        direction = right;
+      } else if (s >= -release) {
+        direction = null;
+      }
+    } else if (s > engage) {
+      direction = right;
+    } else if (s < -engage) {
+      direction = left;
+    }
+    if (direction != _pwmDirectionKey) {
+      _pwmDirectionKey = direction;
+      // Nayi simt foran lage — pehli tick par hi key dab jaye,
+      // diffusion ka hisaab intezar na karwaye.
+      _pwmAccumulator = direction == null ? 0 : 1.0;
+    }
+    if (direction == null) {
+      _setPwmKey(null);
+      return;
+    }
+
+    // Duty: dead zone ke baad mor kitna gehra hai (0..1).
+    final duty =
+        ((s.abs() - engage) / (1 - engage)).clamp(0.0, 1.0).toDouble();
+    if (duty >= 0.98) {
+      _setPwmKey(direction); // poora mor — key lagi rahe
+      return;
+    }
+    // 100 ms window me key-down waqt = 25 + 75 × duty ms.
+    // 20 ms ki ticks par ye hisaab error diffusion se bant-ta hai:
+    // har tick apna hissa jama karta hai; jama 1 ho jaye to is tick
+    // key dabti hai. Lambay arsay ka duty formula ke ain mutabiq.
+    _pwmAccumulator += (25 + 75 * duty) / 100;
+    if (_pwmAccumulator >= 1) {
+      _pwmAccumulator -= 1;
+      _setPwmKey(direction);
+    } else {
+      _setPwmKey(null);
+    }
+  }
+
+  void _setPwmKey(GameKey? key) {
+    if (key == _pwmAppliedKey) return;
+    _pwmAppliedKey = key;
+    _setSourceKeys('pwm', key == null ? const {} : {key});
+  }
+
+  /// Touch wheel ka angle → normalised mor. Dead zone aur release
+  /// hadd wheel ki purani degrees wali hisaab se hi aati hai
+  /// (release = dead zone − min(2°, 35%)) — sirf normalised hai.
+  void _feedWheelSteer(double angleDeg) {
+    if (!_driving || _tiltMode) return;
+    final range = _settings.steeringRangeDeg;
+    final deadZone = _settings.deadZoneDeg;
+    final releaseDeg = math.max(
+      0.0,
+      deadZone - math.min(2.0, deadZone * 0.35),
+    );
+    _setSteerInput(
+      source: 'wheel',
+      value: (angleDeg / range).clamp(-1.0, 1.0).toDouble(),
+      engage: deadZone / range,
+      release: releaseDeg / range,
+    );
+  }
+
+  /// Tilt ka delta (degrees) → normalised mor (poora mor = 45°).
+  void _feedTiltSteer(double deltaDeg) {
+    if (!_driving || !_tiltMode) return;
+    _setSteerInput(
+      source: 'tilt',
+      value: (deltaDeg / _tiltFullScaleDeg).clamp(-1.0, 1.0).toDouble(),
+      engage: _tiltEngageDeg / _tiltFullScaleDeg,
+      release: _tiltReleaseDeg / _tiltFullScaleDeg,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -296,7 +502,6 @@ class _ControllerScreenState extends State<ControllerScreen>
     // haalat me pakra hai, wahi "seedha" hai.
     _resetTiltBaseline();
     _tiltHasSmooth = false;
-    _tiltKey = null;
     // Game wali raftar (20ms) lazmi mango — default raftar 200ms
     // hai; us par low-pass ke saath steering ~0.7s late ho jati,
     // khel bilkul bekaar.
@@ -333,9 +538,15 @@ class _ControllerScreenState extends State<ControllerScreen>
     _tiltSubscription?.cancel();
     _tiltSubscription = null;
     _resetTiltBaseline();
-    if (_tiltKey != null) {
-      _tiltKey = null;
-      _setSourceKeys('tilt', const {});
+    // Tilt se chal rahi steering (PWM source) bhi saath band —
+    // engine reset 'pwm' source ko union se nikal deta hai.
+    // Lekin engine sirf tab reset karo jab woh TILT ka ho:
+    // _updateTiltSubscription har connected event par _stopTilt
+    // bulata hai, aur STEERING mode me woh call wheel ki zinda
+    // steering ko galti se nahi kaat sakti. (Baaki har raste par
+    // _clearAllKeys engine ko waisay hi reset karta hai.)
+    if (_steerSourceId == 'tilt') {
+      _resetSteerEngine();
     }
   }
 
@@ -355,16 +566,18 @@ class _ControllerScreenState extends State<ControllerScreen>
     );
     if (magnitude < 2.5) {
       // Phone bohat flat para hai — in-plane angle bharosay ke
-      // qabil nahi. Aik jhatke par key rehne do, lekin flat para
-      // rahe to lagi hui key chhor do — is app ka asool hai ke
-      // koi key kabhi atakti nahi (phone meiz par rakh kar chale
-      // jao to gari gol gol nahi ghumegi).
+      // qabil nahi. Aik jhatke par steering rehne do, lekin flat
+      // para rahe to lagi hui steering chhor do — is app ka asool
+      // hai ke koi key kabhi atakti nahi (phone meiz par rakh kar
+      // chale jao to gari gol gol nahi ghumegi). Baseline rehta
+      // hai — phone uthate hi steering wapas aa jati hai, kyunke
+      // agla durust sample dobara feed kar dega.
       _tiltFlatSince ??= DateTime.now();
-      if (_tiltKey != null &&
+      if (_steerSourceId == 'tilt' &&
+          _pwmDirectionKey != null &&
           DateTime.now().difference(_tiltFlatSince!) >=
               _tiltFlatReleaseDelay) {
-        _tiltKey = null;
-        _setSourceKeys('tilt', const {});
+        _resetSteerEngine();
       }
       return;
     }
@@ -402,67 +615,72 @@ class _ControllerScreenState extends State<ControllerScreen>
     }
     if (delta.abs() > 100) {
       // Phone dusri landscape simt par palat diya (ya ulta kar
-      // diya) — purana baseline bekaar hai. Key chhoro aur naya
-      // baseline banne do, warna aik simt ki key hamesha ke liye
-      // lagi rahegi.
-      if (_tiltKey != null) {
-        _tiltKey = null;
-        _setSourceKeys('tilt', const {});
-      }
+      // diya) — purana baseline bekaar hai. Steering chhoro aur
+      // naya baseline banne do, warna aik simt ki key hamesha ke
+      // liye lagi rahegi.
+      _resetSteerEngine();
       _resetTiltBaseline();
       return;
     }
-    _evaluateTilt(delta);
+    // Steering seedha key nahi — normalised mor PWM engine ko do
+    // (lagna 12°, chhutna 8° wali hysteresis engine ke andar hai).
+    _feedTiltSteer(delta);
   }
 
-  /// Tilt angle se steering key — hysteresis ke saath (lagna 12°,
-  /// chhutna 8°), bilkul wheel ke dead-zone wale asool par. Key
-  /// source 'tilt' hai — pedals ke saath union me shamil hoti hai.
-  void _evaluateTilt(double deltaDeg) {
-    final profile = _settings.profile;
-    final left = profile.steerLeftKey;
-    final right = profile.steerRightKey;
-    GameKey? key = _tiltKey;
-    if (key == right) {
-      if (deltaDeg < -_tiltEngageDeg) {
-        key = left;
-      } else if (deltaDeg <= _tiltReleaseDeg) {
-        key = null;
-      }
-    } else if (key == left) {
-      if (deltaDeg > _tiltEngageDeg) {
-        key = right;
-      } else if (deltaDeg >= -_tiltReleaseDeg) {
-        key = null;
-      }
-    } else if (deltaDeg > _tiltEngageDeg) {
-      key = right;
-    } else if (deltaDeg < -_tiltEngageDeg) {
-      key = left;
-    } else {
-      key = null;
-    }
-    if (key != _tiltKey) {
-      _tiltKey = key;
-      _setSourceKeys('tilt', key == null ? const {} : {key});
-    }
-  }
-
-  /// ENTER/EXIT CAR button: F key tap + layout tabdeel (FR-19).
+  /// ENTER/EXIT CAR button: F key ka saaf tap + layout tabdeel (FR-19).
+  ///
+  /// v3: press ab 150 ms ka aik saaf, poora dabao hai aur 250 ms ki
+  /// lockout ke saath — v2 me ungli ki halki larazish ya ghalti se
+  /// dusra tap lag jane par game do dafa F samajhta tha (bandah bahar
+  /// nikal kar dobara andar) aur button "ulta" lagta tha.
   Future<void> _onEnterExitTap() async {
     if (!_connected || _fTapInProgress) return;
+    final now = DateTime.now();
+    if (_lastFTapAt != null &&
+        now.difference(_lastFTapAt!) < _tapLockoutDuration) {
+      return;
+    }
+    _lastFTapAt = now;
     _fTapInProgress = true;
-    // Nishana PEHLE tay kar lo: darmiyan (130ms) me user mode pill dab
+    // Nishana PEHLE tay kar lo: darmiyan (150ms) me user mode pill dab
     // de to ye tap mode ko dobara nahi palat-ti — warna layout game se
     // desync ho jati hai, aur pill usi desync ki marammat ke liye hai.
     final targetDriving = !_driving;
     _clearAllKeys();
     _setSourceKeys('ftap', {_settings.profile.enterExitKey});
-    await Future<void>.delayed(const Duration(milliseconds: 130));
-    if (!mounted) return;
+    await Future<void>.delayed(_tapPressDuration);
+    if (!mounted) {
+      _fTapInProgress = false;
+      return;
+    }
     _setSourceKeys('ftap', const {});
     _switchMode(targetDriving);
     _fTapInProgress = false;
+  }
+
+  /// Aik saaf momentary press: key 150 ms dabi rahe, phir chhute;
+  /// 250 ms tak dusra press nazarandaz (double-fire lockout).
+  /// JUMP aur MAP (Esc) isi se chalte hain.
+  ///
+  /// Generation guard: darmiyan me mode switch/clear ho jaye to
+  /// purana delayed release naye press ki key nahi kaat sakta.
+  Future<void> _momentaryKeyPress(String id, GameKey key) async {
+    if (!_connected) return;
+    if (_tapLockouts.contains(id)) return;
+    _tapLockouts.add(id);
+    unawaited(
+      Future<void>.delayed(_tapLockoutDuration).then((_) {
+        _tapLockouts.remove(id);
+      }),
+    );
+    final generation = (_tapGenerations[id] ?? 0) + 1;
+    _tapGenerations[id] = generation;
+    final source = 'tap_$id';
+    _setSourceKeys(source, {key});
+    await Future<void>.delayed(_tapPressDuration);
+    if (_tapGenerations[id] == generation) {
+      _setSourceKeys(source, const {});
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -619,12 +837,22 @@ class _ControllerScreenState extends State<ControllerScreen>
   /// wheel ya gauge nahi — BRAKE pedal neeche-left (jahan wheel
   /// tha), RACE pedal neeche-right, aur EXIT CAR + HANDBRAKE RACE
   /// ke upar bilkul steering mode wali jagah par. Steering sirf
-  /// phone hilane se hoti hai (source 'tilt').
+  /// phone hilane se hoti hai (PWM engine, source 'tilt').
+  /// v3: beech me CAMERA pad — BRAKE tang hai, is liye pad ko
+  /// steering mode se zyada jagah milti hai.
   Widget _buildTiltDrivingLayer(bool flip, double clusterScale) {
     final profile = _settings.profile;
+    // Pad ki kinariyaan: BRAKE wali taraf 34 + 97 (pedal) + 12 gap;
+    // cluster wali taraf 26 + 198 (sab se chauri row) + 12 gap.
+    const brakeSide = 143.0;
+    const clusterSide = 236.0;
     return Stack(
       key: const ValueKey('driving-tilt'),
       children: [
+        _buildCameraPad(
+          left: flip ? clusterSide : brakeSide,
+          right: flip ? brakeSide : clusterSide,
+        ),
         Positioned(
           left: flip ? null : 34,
           right: flip ? 34 : null,
@@ -646,15 +874,8 @@ class _ControllerScreenState extends State<ControllerScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _enterExitButton(),
-                    const SizedBox(width: 14),
-                    _handbrakeButton(profile),
-                  ],
-                ),
-                const SizedBox(height: 10),
+                _topActionRow(profile),
+                const SizedBox(height: 12),
                 _racePedal(profile),
               ],
             ),
@@ -664,25 +885,62 @@ class _ControllerScreenState extends State<ControllerScreen>
     );
   }
 
+  /// CAMERA pad — dono taraf ke controls se kam az kam 12 dp gap
+  /// ke saath beech ki khali jagah par. Upar top bar (sab se unchi
+  /// chrome ~51 par khatam) se 13, neeche ghost buttons se 12.
+  /// Stack me pehle rakha hai taake kisi overlap ki surat me
+  /// buttons hamesha upar rahen.
+  Widget _buildCameraPad({required double left, required double right}) {
+    return Positioned(
+      left: left,
+      right: right,
+      top: 64,
+      bottom: 72,
+      child: CameraPad(
+        onMove: (dx, dy) => _hid.moveMouse(dx, dy),
+      ),
+    );
+  }
+
+  /// Cluster ki sab se upar wali row: ENTER/EXIT • MAP • HANDBRAKE.
+  /// Teeno driving clusters (steering/tilt) yahi istemal karte hain
+  /// taake positions kabhi drift na hon.
+  Widget _topActionRow(GameProfile profile) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _enterExitButton(),
+        const SizedBox(width: 12),
+        _mapButton(),
+        const SizedBox(width: 12),
+        _handbrakeButton(profile),
+      ],
+    );
+  }
+
   Widget _buildDrivingLayer(double wheelSize, bool flip, double clusterScale) {
     final profile = _settings.profile;
     final wheel = SteeringWheel(
       size: wheelSize,
       rangeDeg: _settings.steeringRangeDeg,
-      deadZoneDeg: _settings.deadZoneDeg,
       sensitivity: _settings.sensitivity.factor,
-      onSteeringKeyChanged: (key) {
-        _setSourceKeys(
-          'wheel',
-          key == null ? const {} : {key},
-        );
+      onAngleChanged: (angle) {
+        _wheelAngle.value = angle;
+        _feedWheelSteer(angle);
       },
-      onAngleChanged: (angle) => _wheelAngle.value = angle,
     );
     final cluster = _buildDrivingCluster(profile);
+    // Pad ki kinariyaan: wheel wali taraf 34 + wheel + 12 gap;
+    // cluster wali taraf 26 + 198 (sab se chauri row) + 12 gap.
+    final wheelSide = 34 + wheelSize + 12;
+    const clusterSide = 236.0;
     return Stack(
       key: const ValueKey('driving'),
       children: [
+        _buildCameraPad(
+          left: flip ? clusterSide : wheelSide,
+          right: flip ? wheelSide : clusterSide,
+        ),
         Positioned(
           left: flip ? null : 34,
           right: flip ? 34 : null,
@@ -710,9 +968,19 @@ class _ControllerScreenState extends State<ControllerScreen>
       onKeysChanged: (keys) => _setSourceKeys('joystick', keys),
     );
     final cluster = _buildOnFootCluster(profile);
+    // Pad ki kinariyaan: joystick wali taraf 44 + joystick + 12 gap;
+    // cluster wali taraf 26 + 220 (sab se chauri row) + 12 gap.
+    // Paidal mode me camera sab se zyada chalta hai (chalna +
+    // dekhna + swimming ki simt) — pad yahan jaan hai.
+    final joystickSide = 44 + wheelSize * 0.88 + 12;
+    const clusterSide = 258.0;
     return Stack(
       key: const ValueKey('onfoot'),
       children: [
+        _buildCameraPad(
+          left: flip ? clusterSide : joystickSide,
+          right: flip ? joystickSide : clusterSide,
+        ),
         Positioned(
           left: flip ? null : 44,
           right: flip ? 44 : null,
@@ -738,7 +1006,7 @@ class _ControllerScreenState extends State<ControllerScreen>
   /// Racing Cockpit: garam orange gradient.
   Widget _enterExitButton() {
     return RoundButton(
-      diameter: 68,
+      diameter: 58,
       label: _driving ? 'EXIT\nCAR' : 'ENTER\nCAR',
       subLabel: _settings.profile.enterExitKey.label,
       gradientTop: const Color(0xFFFB923C),
@@ -748,11 +1016,28 @@ class _ControllerScreenState extends State<ControllerScreen>
     );
   }
 
-  /// HANDBRAKE gol button — ENTER/EXIT ke saath wali position,
+  /// MAP button (v3) — Esc ka saaf tap. SA Original me map pause
+  /// menu ke andar hai; ye wahi menu kholta hai, phir CAMERA pad
+  /// wahan pointer hai aur (paidal mode me) ATTACK click hai.
+  /// Dono layouts me action row ki dusri position — jagah nahi
+  /// badalti.
+  Widget _mapButton() {
+    return RoundButton(
+      diameter: 58,
+      label: 'MAP',
+      subLabel: GameKey.escape.label,
+      gradientTop: const Color(0xFF475569),
+      gradientBottom: const Color(0xFF1E293B),
+      borderColor: const Color(0xFF94A3B8),
+      onTap: () => _momentaryKeyPress('map', GameKey.escape),
+    );
+  }
+
+  /// HANDBRAKE gol button — action row ki teesri position (driving),
   /// garam red gradient (Racing Cockpit).
   Widget _handbrakeButton(GameProfile profile) {
     return RoundButton(
-      diameter: 68,
+      diameter: 58,
       label: 'HAND\nBRAKE',
       subLabel: profile.handbrakeKey.label,
       gradientTop: const Color(0xFFEF4444),
@@ -763,6 +1048,25 @@ class _ControllerScreenState extends State<ControllerScreen>
           'handbrake',
           held ? {profile.handbrakeKey} : const {},
         );
+      },
+    );
+  }
+
+  /// ATTACK button (v3, sirf paidal mode) — mouse ka LEFT button.
+  /// Dabaye rakho to daba rehta hai (larai/fire), chhoro to chhut
+  /// jata hai. Mouse button ki haalat HidService rakhta hai aur har
+  /// safety path (mode switch, disconnect, pause, dispose) par
+  /// zero hoti hai — click atak nahi sakta.
+  Widget _attackButton() {
+    return RoundButton(
+      diameter: 80,
+      label: 'ATTACK',
+      subLabel: 'Mouse',
+      gradientTop: const Color(0xFFDC2626),
+      gradientBottom: const Color(0xFF7F1D1D),
+      borderColor: const Color(0xFFFCA5A5),
+      onHeldChanged: (held) {
+        _hid.setMouseButtons(held ? HidService.mouseButtonLeft : 0);
       },
     );
   }
@@ -804,15 +1108,8 @@ class _ControllerScreenState extends State<ControllerScreen>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _enterExitButton(),
-            const SizedBox(width: 14),
-            _handbrakeButton(profile),
-          ],
-        ),
-        const SizedBox(height: 10),
+        _topActionRow(profile),
+        const SizedBox(height: 12),
         Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -836,11 +1133,15 @@ class _ControllerScreenState extends State<ControllerScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             _enterExitButton(),
-            // HANDBRAKE ki jagah khali — ENTER CAR ki position na badle.
-            const SizedBox(width: 82),
+            const SizedBox(width: 12),
+            _mapButton(),
+            const SizedBox(width: 12),
+            // ATTACK action row ki teesri position par — driving me
+            // yahi jagah HANDBRAKE ki hai; ungli ki jagah nahi badalti.
+            _attackButton(),
           ],
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: 12),
         Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -858,18 +1159,16 @@ class _ControllerScreenState extends State<ControllerScreen>
             ),
             const SizedBox(width: 18),
             RoundButton(
-              diameter: 94,
+              diameter: 80,
               label: 'JUMP',
               subLabel: profile.jumpKey.label,
               gradientTop: const Color(0xFF4B5563),
               gradientBottom: const Color(0xFF1F2937),
               borderColor: const Color(0xFFFB923C),
-              onHeldChanged: (held) {
-                _setSourceKeys(
-                  'jump',
-                  held ? {profile.jumpKey} : const {},
-                );
-              },
+              // v3: JUMP ab hold nahi — aik saaf 150 ms press
+              // (lockout ke saath), bilkul ENTER/EXIT ki tarah.
+              onTap: () =>
+                  _momentaryKeyPress('jump', profile.jumpKey),
             ),
           ],
         ),
@@ -1087,8 +1386,8 @@ class _RunToggleButtonState extends State<_RunToggleButton> {
         curve: Curves.easeOut,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: 118,
-          height: 74,
+          width: 100,
+          height: 63,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,

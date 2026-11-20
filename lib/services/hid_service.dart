@@ -80,12 +80,17 @@ class BondedDevice {
   }
 }
 
-/// Bluetooth HID keyboard ka Dart darwaza.
+/// Bluetooth HID keyboard + mouse ka Dart darwaza.
 ///
 /// Kotlin side (`HidKeyboardManager`) se MethodChannel par commands aur
 /// EventChannel par haqiqi connection state milti hai. Ye class pressed keys
 /// ka aik set rakhti hai; har tabdeeli par poora 8-byte snapshot report
 /// bhejti hai — is liye koi key atak (stuck) nahi sakti.
+///
+/// v3: device ab combo hai (keyboard + mouse). Mouse camera ghumane,
+/// swimming ki simt aur menu pointer ke liye hai; us ka left button
+/// ATTACK hai. Mouse buttons bhi state ki tarah rakhe jate hain aur
+/// har safety path par zero hote hain — click bhi atak nahi sakta.
 class HidService {
   HidService._() {
     _initEventStream();
@@ -96,6 +101,11 @@ class HidService {
   static const MethodChannel _methods = MethodChannel('gta_remote/hid');
   static const EventChannel _events = EventChannel('gta_remote/hid_events');
 
+  /// HID mouse ke button bits (report ID 2, byte 0).
+  static const int mouseButtonLeft = 0x01;
+  static const int mouseButtonRight = 0x02;
+  static const int mouseButtonMiddle = 0x04;
+
   final StreamController<HidState> _stateController =
       StreamController<HidState>.broadcast();
   HidState _current = const HidState();
@@ -105,6 +115,11 @@ class HidService {
 
   Set<GameKey> _pressedKeys = {};
   String _lastSentSignature = '';
+
+  /// Is waqt dabaye hue mouse buttons (bitmask) — state ki tarah
+  /// rakha jata hai taake harkat wali reports ke saath bhi sahi
+  /// button haalat jaye, aur release hamesha pakka ho.
+  int _mouseButtons = 0;
 
   void _initEventStream() {
     _events.receiveBroadcastStream().listen(
@@ -126,8 +141,13 @@ class HidService {
             );
             if (connection == HidConnection.disconnected) {
               // Link kat gaya to phone ki taraf se bhi saari keys saaf.
+              // Mouse buttons bhi zero samjho — link katte hi laptop
+              // ki taraf se bhi button chhut jata hai; hamari state
+              // us se milti rehni chahiye, warna reconnect par purana
+              // button "daba hua" samjha jayega.
               _pressedKeys = {};
               _lastSentSignature = '';
+              _mouseButtons = 0;
               _update(_current.copyWith(
                 connection: connection,
                 clearDevice: true,
@@ -351,9 +371,45 @@ class HidService {
   }
 
   /// Saari keys aik saath chhor do (safety — FR-28/FR-29).
+  /// Mouse buttons bhi saath hi chhut-te hain — is aik function se
+  /// har safety path (disconnect, pause, mode switch…) dono taraf
+  /// saaf ho jata hai.
   void releaseAllKeys() {
     _pressedKeys = {};
     _sendCurrentReport();
+    setMouseButtons(0);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mouse reports (v3)
+  // ---------------------------------------------------------------------------
+
+  /// Mouse ko harkat do (relative) — camera pad yahi bulata hai.
+  /// Har call aik report hai kyunke dx/dy "harkat" hai, haalat nahi;
+  /// dabaye hue buttons maujooda state se saath jate hain.
+  void moveMouse(int dx, int dy) {
+    if (dx == 0 && dy == 0) return;
+    _sendMouseReport(dx, dy, _mouseButtons, 0);
+  }
+
+  /// Mouse buttons ki haalat badlo (masalan ATTACK dabana/chhorna).
+  /// Haalat na badli ho to report nahi jata.
+  void setMouseButtons(int buttons) {
+    final masked = buttons & 0x07;
+    if (masked == _mouseButtons) return;
+    _mouseButtons = masked;
+    _sendMouseReport(0, 0, masked, 0);
+  }
+
+  void _sendMouseReport(int dx, int dy, int buttons, int wheel) {
+    unawaited(
+      _methods.invokeMethod<bool>('sendMouse', <String, dynamic>{
+        'dx': dx,
+        'dy': dy,
+        'buttons': buttons,
+        'wheel': wheel,
+      }).catchError((Object _) => false),
+    );
   }
 
   void _sendCurrentReport() {

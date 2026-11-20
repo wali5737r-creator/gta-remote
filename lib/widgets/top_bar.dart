@@ -45,13 +45,13 @@ class ControllerTopBar extends StatelessWidget {
           ),
         ),
         if (driving && onSteerModeSelected != null) ...[
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           SteerModeSwitch(
             tiltMode: tiltMode,
             onSelected: onSteerModeSelected!,
           ),
         ],
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         _ModePill(driving: driving, onModeSelected: onModeSelected),
       ],
     );

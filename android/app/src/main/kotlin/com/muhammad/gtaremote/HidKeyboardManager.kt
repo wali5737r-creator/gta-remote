@@ -32,8 +32,13 @@ import java.util.concurrent.Executor
  * - EventChannel "gta_remote/hid_events" — haqiqi registration/connection
  *   state, jo Android ke callbacks se aati hai (andaza kabhi nahi).
  *
- * Report format (boot keyboard): 8 bytes —
+ * Report format (boot keyboard, Report ID 1): 8 bytes —
  * byte 0 = modifier (Left Shift = 0x02), byte 1 = 0, bytes 2..7 = keycodes.
+ *
+ * v3: descriptor me mouse bhi hai (Report ID 2, combo device) — GTA ka
+ * camera, swimming ki simt aur menu pointer mouse se chalte hain.
+ * Mouse report: 4 bytes — byte 0 = buttons (bit 0 = left), byte 1 = X
+ * (relative, -127..127), byte 2 = Y, byte 3 = wheel.
  */
 class HidKeyboardManager(
     private val activity: Activity,
@@ -44,6 +49,7 @@ class HidKeyboardManager(
         private const val METHOD_CHANNEL = "gta_remote/hid"
         private const val EVENT_CHANNEL = "gta_remote/hid_events"
         private const val REPORT_ID = 1
+        private const val MOUSE_REPORT_ID = 2
 
         private const val REQ_PERMISSIONS = 9401
         private const val REQ_ENABLE_BT = 9402
@@ -83,7 +89,38 @@ class HidKeyboardManager(
             0x19, 0x00, //   Usage Minimum (0)
             0x29, 0x65, //   Usage Maximum (101)
             0x81, 0x00, //   Input (Data, Array) — 6 keycodes
-            0xC0        // End Collection
+            0xC0,       // End Collection (keyboard)
+
+            // --- Mouse (v3) — keyboard wali collection se bilkul alag;
+            // upar wale bytes aik bhi nahi badla. ---
+            0x05, 0x01, // Usage Page (Generic Desktop)
+            0x09, 0x02, // Usage (Mouse)
+            0xA1, 0x01, // Collection (Application)
+            0x85, 0x02, //   Report ID (2)
+            0x09, 0x01, //   Usage (Pointer)
+            0xA1, 0x00, //   Collection (Physical)
+            0x05, 0x09, //     Usage Page (Button)
+            0x19, 0x01, //     Usage Minimum (1)
+            0x29, 0x03, //     Usage Maximum (3)
+            0x15, 0x00, //     Logical Minimum (0)
+            0x25, 0x01, //     Logical Maximum (1)
+            0x75, 0x01, //     Report Size (1)
+            0x95, 0x03, //     Report Count (3)
+            0x81, 0x02, //     Input (Data, Var, Abs) — 3 buttons
+            0x75, 0x05, //     Report Size (5)
+            0x95, 0x01, //     Report Count (1)
+            0x81, 0x01, //     Input (Constant) — 5-bit padding
+            0x05, 0x01, //     Usage Page (Generic Desktop)
+            0x09, 0x30, //     Usage (X)
+            0x09, 0x31, //     Usage (Y)
+            0x09, 0x38, //     Usage (Wheel)
+            0x15, 0x81, //     Logical Minimum (-127)
+            0x25, 0x7F, //     Logical Maximum (127)
+            0x75, 0x08, //     Report Size (8)
+            0x95, 0x03, //     Report Count (3)
+            0x81, 0x06, //     Input (Data, Var, Rel) — X/Y/wheel
+            0xC0,       //   End Collection (Physical)
+            0xC0        // End Collection (mouse)
         )
 
         private fun descriptorBytes(vararg values: Int): ByteArray =
@@ -91,9 +128,14 @@ class HidKeyboardManager(
 
         private val SDP_SETTINGS = BluetoothHidDeviceAppSdpSettings(
             "AB GTA",
-            "AB GTA Bluetooth keyboard",
+            "AB GTA Bluetooth keyboard + mouse",
             "AB GTA",
-            BluetoothHidDevice.SUBCLASS1_KEYBOARD,
+            // v3: keyboard + mouse aik saath — Windows ko combo device
+            // kehna zaroori hai, warna mouse wali report nazarandaz
+            // ho sakti hai. (Descriptor badalne ki wajah se purani
+            // pairing par Windows ka cached SDP record purana rahega —
+            // aik dafa Remove device + dobara pair zaroori hai.)
+            BluetoothHidDevice.SUBCLASS1_COMBO,
             REPORT_DESCRIPTOR
         )
 
@@ -275,6 +317,7 @@ class HidKeyboardManager(
                 result.success(true)
             }
             "sendReport" -> sendReport(call, result)
+            "sendMouse" -> sendMouse(call, result)
             else -> result.notImplemented()
         }
     }
@@ -602,6 +645,7 @@ class HidKeyboardManager(
         val device = connectedDevice ?: targetDevice
         if (device != null) {
             sendZeroReport(device)
+            sendZeroMouseReport(device)
             try {
                 hidDevice?.disconnect(device)
             } catch (e: SecurityException) {
@@ -657,6 +701,51 @@ class HidKeyboardManager(
         }
     }
 
+    /**
+     * Mouse report (Report ID 2) — camera ghumana, menu pointer,
+     * ATTACK button (left click). Keyboard report ki tarah ye bhi
+     * sirf tab jata hai jab registered + connected ho.
+     *
+     * Arguments: dx/dy/wheel (-127..127, relative), buttons (bit 0 =
+     * left, bit 1 = right, bit 2 = middle — descriptor me 3 buttons
+     * declare hain, is liye value 0x07 par mask hoti hai).
+     */
+    private fun sendMouse(call: MethodCall, result: MethodChannel.Result) {
+        val proxy = hidDevice
+        val device = connectedDevice
+        if (proxy == null || device == null ||
+            connectionState != BluetoothProfile.STATE_CONNECTED
+        ) {
+            result.success(false)
+            return
+        }
+        val buttons = (call.argument<Int>("buttons") ?: 0) and 0x07
+        val dx = (call.argument<Int>("dx") ?: 0).coerceIn(-127, 127)
+        val dy = (call.argument<Int>("dy") ?: 0).coerceIn(-127, 127)
+        val wheel = (call.argument<Int>("wheel") ?: 0).coerceIn(-127, 127)
+        val data = byteArrayOf(
+            buttons.toByte(),
+            dx.toByte(),
+            dy.toByte(),
+            wheel.toByte()
+        )
+        val sent = try {
+            proxy.sendReport(device, MOUSE_REPORT_ID, data)
+        } catch (e: SecurityException) {
+            false
+        }
+        result.success(sent)
+    }
+
+    /** Mouse ke saare buttons chhoro — koi click atak nahi sakta. */
+    private fun sendZeroMouseReport(device: BluetoothDevice) {
+        try {
+            hidDevice?.sendReport(device, MOUSE_REPORT_ID, ByteArray(4))
+        } catch (e: SecurityException) {
+            // Link pehle hi band — zero report ki zaroorat nahi rahi.
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Lifecycle
     // -------------------------------------------------------------------------
@@ -673,11 +762,17 @@ class HidKeyboardManager(
      * disconnect par hota hai.
      */
     fun onHostPause() {
-        connectedDevice?.let { sendZeroReport(it) }
+        connectedDevice?.let {
+            sendZeroReport(it)
+            sendZeroMouseReport(it)
+        }
     }
 
     fun dispose() {
-        connectedDevice?.let { sendZeroReport(it) }
+        connectedDevice?.let {
+            sendZeroReport(it)
+            sendZeroMouseReport(it)
+        }
         unregisterInternal()
         try {
             val proxy = hidDevice

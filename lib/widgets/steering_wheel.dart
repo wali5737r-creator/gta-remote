@@ -2,23 +2,24 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../models/game_key.dart';
-
 /// Asli car jaisa steering wheel — ungli se ghumta hai.
 ///
 /// - Rotation **delta-angle** tareeqay se hoti hai: ungli jahan se bhi
 ///   pakray, wheel wahan se snap nahi hota (FR-8).
-/// - Angle ±range par clamp; dead zone ke andar koi key nahi (FR-9).
+/// - Angle ±range par clamp (FR-9).
 /// - Ungli uthte hi wheel ~200ms me spring se centre wapas (FR-10).
 /// - Muhammad ki design note: wheel ke neeche koi caption text nahi.
+///
+/// v3: wheel ab khud koi key nahi bhejta — sirf apna **angle** batata
+/// hai. Angle ko A/D key me badalna controller ke PWM engine ka kaam
+/// hai (halka mor = halki pulse, poora mor = lagi hui key), taake
+/// chhota sa mor gari ko poora na ghuma de.
 class SteeringWheel extends StatefulWidget {
   const SteeringWheel({
     super.key,
     required this.size,
     required this.rangeDeg,
-    required this.deadZoneDeg,
     required this.sensitivity,
-    required this.onSteeringKeyChanged,
     this.onAngleChanged,
   });
 
@@ -27,16 +28,11 @@ class SteeringWheel extends StatefulWidget {
   /// Aik side zyada se zyada kitne degrees (90 ya 135).
   final double rangeDeg;
 
-  /// Centre dead zone (degrees).
-  final double deadZoneDeg;
-
   /// Ungli ki harkat ka multiplier (0.7 / 1.0 / 1.4).
   final double sensitivity;
 
-  /// Steering key tabdeel ho to: A, D, ya null (koi nahi).
-  final ValueChanged<GameKey?> onSteeringKeyChanged;
-
-  /// Angle readout ke liye (centre screen par chhota sa text).
+  /// Angle badle to (degrees, −range..+range) — readout aur PWM
+  /// steering engine dono ke liye.
   final ValueChanged<double>? onAngleChanged;
 
   @override
@@ -50,7 +46,6 @@ class _SteeringWheelState extends State<SteeringWheel>
 
   double _angleDeg = 0;
   double? _lastFingerAngleRad;
-  GameKey? _currentKey;
   int _lastReportedDegree = 0;
 
   /// Jo ungli wheel ghuma rahi hai — sirf usi ki harkat gini jati hai.
@@ -72,63 +67,24 @@ class _SteeringWheelState extends State<SteeringWheel>
         final animation = _springAnimation;
         if (animation == null) return;
         setState(() => _angleDeg = animation.value);
-        _evaluate();
+        _reportAngle();
       });
   }
 
   @override
   void dispose() {
-    // Widget ghumti haalat me khatam ho raha ho to steering key chhor
-    // do — koi key kisi surat atak nahi sakti.
-    if (_currentKey != null) {
-      _currentKey = null;
-      widget.onSteeringKeyChanged(null);
-    }
+    // Key chhorne ki zimmedari ab controller ke PWM engine ki hai —
+    // mode/steer switch par woh khud saaf hota hai (aur widget khatam
+    // hona hamesha unhi switches se hota hai).
     _springController.dispose();
     super.dispose();
   }
 
-  /// Angle se steering key nikalo aur tabdeeli par khabar do.
-  ///
-  /// Hysteresis: key **lagne** ki hadd dead zone hai, lekin **chhutne**
-  /// ki hadd us se kuch andar hai. Warna hadd par khara wheel A/D ko
-  /// tez tez on/off karke report barsa deta hai aur gari jhatkay khati
-  /// hai — ungli ki halki larazish par bhi.
-  void _evaluate() {
-    final engage = widget.deadZoneDeg;
-    final release = math.max(
-      0.0,
-      engage - math.min(2.0, engage * 0.35),
-    );
-    final GameKey? key;
-    if (_currentKey == GameKey.a) {
-      // A lagi hui hai: release hadd tak rakho, seedha D par bhi ja saktay.
-      if (_angleDeg > engage) {
-        key = GameKey.d;
-      } else if (_angleDeg < -release) {
-        key = GameKey.a;
-      } else {
-        key = null;
-      }
-    } else if (_currentKey == GameKey.d) {
-      if (_angleDeg < -engage) {
-        key = GameKey.a;
-      } else if (_angleDeg > release) {
-        key = GameKey.d;
-      } else {
-        key = null;
-      }
-    } else if (_angleDeg < -engage) {
-      key = GameKey.a;
-    } else if (_angleDeg > engage) {
-      key = GameKey.d;
-    } else {
-      key = null;
-    }
-    if (key != _currentKey) {
-      _currentKey = key;
-      widget.onSteeringKeyChanged(key);
-    }
+  /// Angle ki tabdeeli controller ko batao (poora degree badle to) —
+  /// readout aur PWM engine dono isi par chalte hain. Spring return
+  /// ke doran bhi har degree par khabar jati hai, taake engine mor
+  /// ke saath saath naram hota jaye.
+  void _reportAngle() {
     final rounded = _angleDeg.round();
     if (rounded != _lastReportedDegree) {
       _lastReportedDegree = rounded;
@@ -176,7 +132,7 @@ class _SteeringWheelState extends State<SteeringWheel>
             .clamp(-widget.rangeDeg, widget.rangeDeg)
             .toDouble();
       });
-      _evaluate();
+      _reportAngle();
     }
     _lastFingerAngleRad = current;
   }

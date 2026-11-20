@@ -306,3 +306,94 @@ preserve these `res/mipmap-*` folders (handled separately); if it
 ever replaces `res/` wholesale instead of merging, the
 `flutter create` styles (`@style/NormalTheme`) must still come from
 the generated tree.
+
+---
+
+## v3 — HID mouse (camera), PWM steering, ATTACK + MAP, layout pass (2026-11-20)
+
+Driven by Muhammad's first real play session with v2 (SA Original):
+camera fixed, swimming straight-only/uneven, ENTER/EXIT feeling
+reversed, steering all-or-nothing, no fight button, no map button,
+buttons too big/touching. Full three-lens review: `IMPROVEMENTS_V3.md`
+(1 major + 3 minor found in review, all fixed before build).
+
+### HID mouse (the camera fix)
+
+- The report descriptor gains a **mouse collection, Report ID 2**
+  (3 buttons + 5-bit padding, relative X/Y ±127, wheel) appended
+  after the keyboard collection — **keyboard bytes unchanged**.
+  SDP subclass is now `SUBCLASS1_COMBO`; name/provider unchanged.
+- Kotlin: `sendMouse(dx, dy, buttons, wheel)` on the same channel
+  (guards mirror `sendReport`); `sendZeroMouseReport` added to
+  `onHostPause`, `disconnectInternal` and `dispose`.
+- Dart `HidService`: `_mouseButtons` state, `moveMouse`,
+  `setMouseButtons` (change-guarded); `releaseAllKeys()` also
+  zeroes the mouse buttons, so every existing safety path covers
+  clicks too; the disconnect event resets the state without sending.
+- **⚠ Owner action: Remove device + re-pair once on the laptop.**
+  The descriptor changed, so Windows' cached SDP record for the
+  existing bond is keyboard-only until re-paired.
+
+### CAMERA pad (`lib/widgets/camera_pad.dart`, new)
+
+Raw-Listener drag pad in all three layouts (centre, between the
+side controls with ≥12 dp gaps, below the top bar, above the ghost
+buttons). Deltas ×2.2 sensitivity, fractionally accumulated, flushed
+every ~12 ms in ±127 chunks; final flush on lift; single-pointer
+ownership like every other control. This one pad is SA's camera,
+swim-direction control and pause-menu pointer.
+
+### PWM steering (the oversensitivity fix)
+
+The wheel and tilt no longer emit A/D directly. They feed a
+normalised steer (−1..+1) into one engine in `controller_screen.dart`:
+20 ms tick, direction chosen with each source's existing hysteresis
+(wheel: dead-zone/range + the v2 release rule; tilt: 12° engage /
+8° release over a 45° full-lock scale), duty =
+clamp((|s| − dz)/(1 − dz)); per 100 ms the key is down
+25 ms + 75 ms × duty (error diffusion across ticks — see
+IMPROVEMENTS_V3 D3); duty ≥ 0.98 holds the key. `SteeringWheel`
+now reports only its angle (its key callback and internal hysteresis
+are gone — the engine owns thresholds); tilt feeds the same engine
+instead of the old 'tilt' key source. The union source is 'pwm'.
+
+### Momentary presses (the ENTER/EXIT fix)
+
+ENTER/EXIT (F), JUMP and MAP are one clean **150 ms** press with a
+**250 ms double-fire lockout** (`_momentaryKeyPress` +
+generation guard; ENTER/EXIT keeps its target-capture + its own
+lockout timestamp). JUMP changed from hold to tap. ENTER/EXIT stays
+a single toggle button labelled ENTER/EXIT CAR.
+
+### ATTACK + MAP
+
+- **ATTACK** (on foot only, action-row third slot — where HANDBRAKE
+  sits in driving): hold sends HID mouse LEFT, release sends up.
+  Driving omits it deliberately (IMPROVEMENTS_V3 D2 — the pad owns
+  the driving centre at small sizes).
+- **MAP** (both layouts, action-row second slot — the v2 on-foot
+  spacer's place): Esc tap; SA Original's map is in the pause menu,
+  where the pad is the pointer.
+
+### Swimming (issue closed without swim code)
+
+Direction follows the camera → the pad. Speed: RUN remains the
+FR-16 toggle, and while RUNNING the sprint key is held in every
+report — the same signal as hold-to-sprint (IMPROVEMENTS_V3 D1).
+A Settings help line now teaches pad + MAP + ATTACK + this.
+
+### Layout pass
+
+Round buttons 68→58 (ENTER/EXIT, HANDBRAKE, MAP), JUMP 94→80,
+ATTACK 80, RUN 118×74→100×63, pedals RACE 78×148→66×126 /
+BRAKE 114×96→97×82, arm 30→26. All gaps ≥12 dp (two 10 dp gaps
+raised; top-bar gaps 10→12). Verified numerically at 640×360 and
+~880 dp wide; compact scaling untouched. Pedal order and tilt
+layout exactly as v2; profiles and Settings semantics unchanged.
+
+### Not device-verified (owner's session decides)
+
+Combo-device mouse acceptance in SA, camera sensitivity feel,
+PWM feel in both steer modes, lockout feel on ENTER/EXIT, ATTACK
+release on disconnect, swim turning with the pad. See
+IMPROVEMENTS_V3 "Must verify".
