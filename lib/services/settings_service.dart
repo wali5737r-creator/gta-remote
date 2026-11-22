@@ -23,12 +23,17 @@ enum SteeringSensitivity {
   }
 }
 
-/// Driving me steering ka tareeqa (v4 — chaar modes; v6 — paanch).
+/// Driving me steering ka tareeqa (v4 — chaar modes; v6 — paanch;
+/// v7 — chhe).
 ///
 /// v2/v3 me ye sirf aik bool tha (STEERING ya TILT); v4 me CONTROLLER
 /// (analog stick) aur ARROWS (tap wale steer buttons) bhi jud gaye.
 /// v6 me FLY jud gaya — jahaz/helicopter ke liye aik handle
 /// (left/right = mor A/D, up/down = naak ArrowDown/ArrowUp).
+/// v7 me CRICKET jud gaya — ye steering ka tareeqa NAHI hai: ye
+/// EA Sports Cricket 07 ke liye poori alag stage hai (batting ke
+/// swipe shots + bowling ka marker drag), jo driving stage ki
+/// jagah aa jati hai jab active ho.
 /// Purane modes ki behaviour bilkul nahi badli — ye sirf pasand ki
 /// pehchan hai, controller screen is ke hisab se layer chunti hai.
 /// [byName] na-maloom naam par hamesha STEERING deta hai, is liye
@@ -38,7 +43,8 @@ enum DriveMode {
   tilt('TILT'),
   controller('CONTROLLER'),
   arrows('ARROWS'),
-  fly('FLY');
+  fly('FLY'),
+  cricket('CRICKET');
 
   const DriveMode(this.label);
 
@@ -68,6 +74,7 @@ class SettingsService extends ChangeNotifier {
   static const _keyFlipControls = 'flip_controls';
   static const _keyTiltSteering = 'tilt_steering';
   static const _keyDriveMode = 'drive_mode';
+  static const _keyCricketCameraFlip = 'cricket_camera_flip';
   static const _keyDeviceAddress = 'last_device_address';
   static const _keyDeviceName = 'last_device_name';
 
@@ -98,6 +105,13 @@ class SettingsService extends ChangeNotifier {
   /// aur agli dafa ke liye yaad rehta hai.
   DriveMode _driveMode = DriveMode.steering;
   DriveMode get driveMode => _driveMode;
+
+  /// CRICKET mode ki CAMERA ULTA pasand (v7): true ho to batting
+  /// swipe ki dono simtain ulta jati hain — un players ke liye
+  /// jinhon ne Cricket 07 ke andar camera flip kar rakha ho.
+  /// Sirf batting swipes par lagti hai; bowling marker par nahi.
+  bool _cricketCameraFlip = false;
+  bool get cricketCameraFlip => _cricketCameraFlip;
 
   /// Sirf TILT wali purani haalat — v2/v3 ki pasand (tilt_steering
   /// bool) se migration aur tilt wale checks ke liye.
@@ -131,6 +145,7 @@ class SettingsService extends ChangeNotifier {
     }
     _lastDeviceAddress = prefs.getString(_keyDeviceAddress);
     _lastDeviceName = prefs.getString(_keyDeviceName);
+    _cricketCameraFlip = prefs.getBool(_keyCricketCameraFlip) ?? false;
     _loaded = true;
     notifyListeners();
   }
@@ -178,6 +193,13 @@ class SettingsService extends ChangeNotifier {
     // Purani bool key bhi saath rakho — koi purana build wapas
     // lagaye to us ki pasand na khoye.
     await prefs.setBool(_keyTiltSteering, value == DriveMode.tilt);
+  }
+
+  Future<void> setCricketCameraFlip(bool value) async {
+    _cricketCameraFlip = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyCricketCameraFlip, value);
   }
 
   Future<void> setLastDevice(String address, String name) async {

@@ -178,7 +178,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'TILT = tilt the phone left/right, CONTROLLER = '
                       'gamepad stick, ARROWS = tap the ◀ ▶ buttons '
                       '(a short tap makes a small turn), FLY = one '
-                      'handle, for planes and helicopters. The steering '
+                      'handle, for planes and helicopters, CRICKET = '
+                      'the Cricket 07 stage below. The steering '
                       'settings above (range, dead zone) are for the '
                       'touch wheel; sensitivity also applies to the '
                       'CONTROLLER stick.'),
@@ -213,6 +214,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'throttle, DOWN slows down or sinks. The '
                       'CAMERA pad still turns the camera. There is '
                       'no HORN or MISSION in FLY mode.'),
+                  _HelpLine('CRICKET mode (the switch at the top, '
+                      'while driving) is for EA Sports Cricket 07. '
+                      'BATTING: tap a shot button (FRONT FOOT, BACK '
+                      'FOOT or ADVANCE), hold LOFT for a lofted '
+                      'shot, then swipe on the field towards where '
+                      'the shot should go, just as the ball '
+                      'arrives — a plain tap plays no shot, which '
+                      'is how you leave a ball. BOWLING: drag on '
+                      'the pitch to move the marker, then tap a '
+                      'delivery button. CAMERA ULTA flips the '
+                      'swipe directions — use it if you flipped '
+                      'the camera inside the game.'),
                   _HelpLine('Everything is free — no ads, no time '
                       'limit, no internet needed.'),
                 ],

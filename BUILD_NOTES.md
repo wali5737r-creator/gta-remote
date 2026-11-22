@@ -687,3 +687,79 @@ SDP + QOS block md5 still `ba778a379ab87a7f50ec5d2810479153`.
 
 Pitch response in SA (plane + helicopter) and GTA V with the numpad
 keys; VC unaffected-ness (numpad usages expected inert there).
+
+## v5.3 (2026-11-22) — CRICKET mode for EA Sports Cricket 07
+
+Version 5.3.0+5. Muhammad-approved design (mockups
+`mockup/v7-cricket-mode-4.png` BATTING + `mockup/v7-cricket-bowling.png`
+BOWLING — his layout after three correction rounds: buttons all on
+ONE side, small and ROUND, none stretched; the swipe/drag area on
+the other side). Full three-lens review + traces:
+`IMPROVEMENTS_V7.md`.
+
+### What was added
+
+- **`DriveMode.cricket('CRICKET')`** — sixth pill segment (segment
+  padding 7→5, font 10.5→10, spacing 0.5→0.3 so all six labels fit
+  at 640 dp; the status pill ellipsises first, as since v5).
+  Persisted like the other modes; `byName` fallback unchanged.
+  When active, CRICKET **replaces the driving stage**; the
+  MISSION pill is suppressed (FLY rule extended).
+- **BATTING tab** (`CricketBattingArea`): the whole left area is
+  the swipe surface. Swipe ≥ 40 dp fires ONE snapshot for 120 ms
+  (generation-guarded timer, no lockout): the 8-way sector's
+  arrow combo (screen direction = arrow direction, broadcast
+  camera) + the selected shot key + Shift if **LOFT** is held.
+  A tap (< 40 dp) sends nothing — leaving a ball, exactly like
+  the game. Shot selectors: FRONT FOOT (S) default, BACK FOOT
+  (W), ADVANCE (D) — state only, reset to FRONT FOOT on every
+  clear-all. RUN = clean-press D, CANCEL = A, PAUSE = Esc,
+  MENU = S (all via the v3 `_momentaryKeyPress` helper).
+- **BOWLING tab** (`CricketBowlingArea`): drag holds the marker
+  arrows matching the drag vector from its anchor (10 dp dead
+  zone per axis, diagonals hold both) in source
+  `cricket_marker`; release clears them. The on-screen marker
+  dot is visual only. Deliveries (clean-press 150 ms): SEEDHI
+  BALL = S, VARIATION 1 = A, VARIATION 2 = D, VARIATION 3 = W,
+  SLOWER = Shift alone. **Variation labels stay generic on
+  purpose** — which ball a variation key throws depends on the
+  bowler and the game shows the name itself.
+- **CAMERA ULTA** (both tabs): persisted toggle
+  (`SettingsService.cricketCameraFlip`, pref
+  `cricket_camera_flip`); inverts both axes of batting swipes
+  only — never the bowling marker, never reset by clear-all.
+- **Layout (640×360):** gesture column 331 dp wide (≥ 330),
+  tabs on top of it, surface bottom at 72 (ghost-button
+  clearance, same as the camera pad); divider at x 359; cluster
+  252×252 (3 × 76 dp round buttons + 12 dp gaps) centred in the
+  260 dp stage. The mockups' "BUTTONS" caption is dropped —
+  the grid alone fills the stage height. Flip controls mirrors
+  the layer (cluster ↔ gesture swap, offsets only).
+- **New keys:** `GameKey.arrowLeft` (0x50) / `arrowRight`
+  (0x4F) — the brief assumed all four arrows already existed;
+  only Up/Down did (FLY). Appended at the END of `hidKeyOrder`,
+  so all pre-existing key sets stay byte-identical.
+- Entering CRICKET or switching its tabs runs the standard
+  `_clearAllKeys()` first, which now also calls
+  `_resetCricketState()` (shot timer cancelled, generation
+  bumped, LOFT flag cleared, shot back to FRONT FOOT).
+- Settings help: the steering-modes line now lists CRICKET, and
+  one new help line teaches the mode (swipe to bat, drag to
+  place the ball, CAMERA ULTA).
+
+### HID / re-pair
+
+**No re-pair needed.** ZERO changes under `android/`
+(`git diff HEAD -- android/` empty); descriptor + SDP + QOS block
+md5 still `ba778a379ab87a7f50ec5d2810479153`, identical to
+v4/v5/v5.1/v5.2. All v5.3 work is Dart over the existing
+`sendReport` channel.
+
+### Not device-verified (owner's session decides)
+
+Swipe timing against real bowling speeds; the 120 ms shot window
+against the game's input polling; marker drag distance/feel;
+CAMERA ULTA against the in-game flipped camera; six-segment pill
+readability on the real phone; whether Cricket 07's variations
+match the A/D/W/Shift keys for his bowlers (the game shows the
+names — the buttons deliberately don't guess them).

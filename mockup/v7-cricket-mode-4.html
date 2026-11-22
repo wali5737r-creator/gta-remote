@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body { background:#04070a; display:flex; align-items:center; justify-content:center; height:100vh; }
+  .phone { width:900px; height:520px; border-radius:20px; overflow:hidden; position:relative;
+           background:radial-gradient(circle at 32% 45%, #17451f 0%, #0e2c15 55%, #081a0e 100%);
+           border:1px solid #2a4a33; box-shadow:0 0 60px rgba(46,230,107,.10), inset 0 1px 0 rgba(255,255,255,.06); }
+  .pitch { position:absolute; left:300px; top:55%; width:96px; height:230px; margin:-115px 0 0 -48px; border-radius:8px;
+           background:linear-gradient(180deg,#c9b083,#b39468); opacity:.16; }
+  .crease { position:absolute; left:300px; width:124px; height:2px; margin-left:-62px; background:rgba(255,255,255,.28); }
+  .dirlab { position:absolute; color:rgba(207,232,214,.60); font-size:11.5px; font-weight:800; letter-spacing:2px; }
+  .topbar { position:relative; display:flex; align-items:center; justify-content:space-between; padding:12px 18px 4px 18px; z-index:5; }
+  .brand { color:#fff; font-size:19px; font-weight:800; letter-spacing:2px; text-shadow:0 2px 6px rgba(0,0,0,.6); }
+  .brand span { color:#2ee66b; }
+  .tabs { display:flex; gap:8px; }
+  .tab { color:#dfe9ef; background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:1px; }
+  .tab.on { color:#7bf79f; border-color:rgba(46,230,107,.6); background:rgba(46,230,107,.18); }
+  .modes { position:relative; display:flex; gap:6px; justify-content:center; padding:4px 0; z-index:5; }
+  .mode { color:#c4d4c9; font-size:11px; font-weight:800; letter-spacing:1.2px; padding:5px 11px; border-radius:999px; background:rgba(6,12,8,.45); border:1px solid rgba(255,255,255,.10); }
+  .mode.on { color:#7bf79f; background:rgba(46,230,107,.20); border-color:rgba(46,230,107,.65); box-shadow:0 0 14px rgba(46,230,107,.25); }
+  .divider { position:absolute; left:600px; top:104px; bottom:14px; width:1px; background:rgba(255,255,255,.10); z-index:2; }
+  .swipelab { position:absolute; left:36px; top:118px; z-index:5; color:#7bf79f; font-size:11px; font-weight:800; letter-spacing:2.5px; }
+  .cluster { position:absolute; right:26px; top:118px; z-index:5; width:252px; }
+  .cap { color:#7bf79f; font-size:11px; font-weight:800; letter-spacing:2.5px; text-align:center; margin-bottom:10px; }
+  .grid { display:grid; grid-template-columns:repeat(3, 76px); gap:12px; justify-content:center; }
+  .rb { width:76px; height:76px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+        color:#eaf5ec; background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.22); padding:4px; }
+  .rb .t { font-size:10.5px; font-weight:800; letter-spacing:.6px; line-height:1.25; }
+  .rb.on { background:rgba(46,230,107,.28); border-color:#2ee66b; color:#a9ffc0; box-shadow:0 0 14px rgba(46,230,107,.30); }
+  .rb.loft { border-color:rgba(247,147,30,.65); color:#ffb03a; background:linear-gradient(180deg, rgba(247,147,30,.20), rgba(247,147,30,.04)); }
+  .rb.go { border-color:rgba(46,230,107,.6); color:#7bf79f; }
+  .hint { position:absolute; left:24px; bottom:16px; width:552px; text-align:center; z-index:4; color:#eaf5ec; font-size:13px; font-weight:700; letter-spacing:.5px; text-shadow:0 2px 8px rgba(0,0,0,.85); }
+  .hint b { color:#7bf79f; }
+  svg.swipe { position:absolute; left:120px; top:180px; z-index:3; opacity:.9; }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="pitch"></div>
+    <div class="crease" style="top:216px;"></div>
+    <div class="crease" style="bottom:104px;"></div>
+    <div class="dirlab" style="left:300px; top:122px; transform:translateX(-50%);">PEECHE ▼</div>
+    <div class="dirlab" style="left:56px; top:150px;">THIRD MAN</div>
+    <div class="dirlab" style="left:452px; top:150px;">FINE LEG</div>
+    <div class="dirlab" style="left:34px; top:48%;">◀ POINT</div>
+    <div class="dirlab" style="left:472px; top:48%;">LEG SIDE ▶</div>
+    <div class="dirlab" style="left:64px; bottom:78px;">COVER</div>
+    <div class="dirlab" style="left:452px; bottom:78px;">ON-DRIVE</div>
+    <div class="dirlab" style="left:300px; bottom:52px; transform:translateX(-50%);">▲ SEEDHA</div>
+    <svg class="swipe" width="230" height="170" viewBox="0 0 230 170">
+      <path d="M 190 25 Q 110 80 40 140" stroke="#7bf79f" stroke-width="4" fill="none" stroke-dasharray="10 8" stroke-linecap="round"/>
+      <path d="M 62 128 L 34 146 L 60 152 Z" fill="#7bf79f"/>
+      <circle cx="192" cy="24" r="9" fill="none" stroke="#7bf79f" stroke-width="3"/>
+    </svg>
+    <div class="topbar">
+      <div class="brand">GAMING <span>REMOTE</span></div>
+      <div class="tabs"><div class="tab on">🏏 BATTING</div><div class="tab">BOWLING</div></div>
+    </div>
+    <div class="modes">
+      <div class="mode">STEERING</div><div class="mode">TILT</div><div class="mode">CONTROLLER</div><div class="mode">ARROWS</div><div class="mode">FLY</div><div class="mode on">🏏 CRICKET</div>
+    </div>
+    <div class="divider"></div>
+    <div class="swipelab">SWIPE — SHOT KE LIYE</div>
+    <div class="cluster">
+      <div class="cap">BUTTONS</div>
+      <div class="grid">
+        <div class="rb on"><div class="t">FRONT<br>FOOT</div></div>
+        <div class="rb"><div class="t">BACK<br>FOOT</div></div>
+        <div class="rb"><div class="t">ADVANCE</div></div>
+        <div class="rb loft"><div class="t">🏏 LOFT</div></div>
+        <div class="rb go"><div class="t">RUN</div></div>
+        <div class="rb"><div class="t">CANCEL</div></div>
+        <div class="rb"><div class="t">PAUSE</div></div>
+        <div class="rb"><div class="t">MENU</div></div>
+        <div class="rb"><div class="t">CAMERA<br>ULTA</div></div>
+      </div>
+    </div>
+    <div class="hint">Shot wala gol button chuno, phir ball aate hi <b>matlooba side swipe</b> karo</div>
+  </div>
+</body>
+</html>

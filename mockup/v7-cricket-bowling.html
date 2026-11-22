@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body { background:#04070a; display:flex; align-items:center; justify-content:center; height:100vh; }
+  .phone { width:900px; height:520px; border-radius:20px; overflow:hidden; position:relative;
+           background:radial-gradient(circle at 32% 45%, #17451f 0%, #0e2c15 55%, #081a0e 100%);
+           border:1px solid #2a4a33; box-shadow:0 0 60px rgba(46,230,107,.10), inset 0 1px 0 rgba(255,255,255,.06); }
+  .pitch { position:absolute; left:300px; top:55%; width:150px; height:250px; margin:-125px 0 0 -75px; border-radius:8px;
+           background:linear-gradient(180deg,#c9b083,#b39468); opacity:.22; }
+  .crease { position:absolute; left:300px; width:180px; height:2px; margin-left:-90px; background:rgba(255,255,255,.4); }
+  .zone { position:absolute; left:300px; transform:translateX(-50%); color:rgba(30,40,30,.75); font-size:10.5px; font-weight:800; letter-spacing:1.5px; }
+  .marker { position:absolute; left:330px; top:300px; width:34px; height:34px; margin:-17px 0 0 -17px; border-radius:50%;
+            border:3px solid #2ee66b; box-shadow:0 0 16px rgba(46,230,107,.55), inset 0 0 8px rgba(46,230,107,.4); }
+  .marker::after { content:''; position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px; border-radius:50%; background:#2ee66b; }
+  .dirlab { position:absolute; color:rgba(207,232,214,.60); font-size:11.5px; font-weight:800; letter-spacing:2px; }
+  .topbar { position:relative; display:flex; align-items:center; justify-content:space-between; padding:12px 18px 4px 18px; z-index:5; }
+  .brand { color:#fff; font-size:19px; font-weight:800; letter-spacing:2px; text-shadow:0 2px 6px rgba(0,0,0,.6); }
+  .brand span { color:#2ee66b; }
+  .tabs { display:flex; gap:8px; }
+  .tab { color:#dfe9ef; background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:1px; }
+  .tab.on { color:#7bf79f; border-color:rgba(46,230,107,.6); background:rgba(46,230,107,.18); }
+  .modes { position:relative; display:flex; gap:6px; justify-content:center; padding:4px 0; z-index:5; }
+  .mode { color:#c4d4c9; font-size:11px; font-weight:800; letter-spacing:1.2px; padding:5px 11px; border-radius:999px; background:rgba(6,12,8,.45); border:1px solid rgba(255,255,255,.10); }
+  .mode.on { color:#7bf79f; background:rgba(46,230,107,.20); border-color:rgba(46,230,107,.65); box-shadow:0 0 14px rgba(46,230,107,.25); }
+  .divider { position:absolute; left:600px; top:104px; bottom:14px; width:1px; background:rgba(255,255,255,.10); z-index:2; }
+  .swipelab { position:absolute; left:36px; top:118px; z-index:5; color:#7bf79f; font-size:11px; font-weight:800; letter-spacing:2.5px; }
+  .cluster { position:absolute; right:26px; top:118px; z-index:5; width:252px; }
+  .cap { color:#7bf79f; font-size:11px; font-weight:800; letter-spacing:2.5px; text-align:center; margin-bottom:10px; }
+  .grid { display:grid; grid-template-columns:repeat(3, 76px); gap:12px; justify-content:center; }
+  .rb { width:76px; height:76px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+        color:#eaf5ec; background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.22); padding:4px; }
+  .rb .t { font-size:10.5px; font-weight:800; letter-spacing:.6px; line-height:1.25; }
+  .rb .k { font-size:9px; color:#8fa3b0; margin-top:2px; font-weight:700; }
+  .rb.on { background:rgba(46,230,107,.28); border-color:#2ee66b; color:#a9ffc0; box-shadow:0 0 14px rgba(46,230,107,.30); }
+  .hint { position:absolute; left:24px; bottom:16px; width:552px; text-align:center; z-index:4; color:#eaf5ec; font-size:13px; font-weight:700; letter-spacing:.5px; text-shadow:0 2px 8px rgba(0,0,0,.85); }
+  .hint b { color:#7bf79f; }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="pitch"></div>
+    <div class="crease" style="top:196px;"></div>
+    <div class="crease" style="bottom:88px;"></div>
+    <div class="zone" style="top:226px;">BOUNCER</div>
+    <div class="zone" style="top:316px;">GOOD LENGTH</div>
+    <div class="zone" style="top:396px;">YORKER</div>
+    <div class="marker"></div>
+    <div class="dirlab" style="left:120px; top:48%;">◀ OFF SIDE</div>
+    <div class="dirlab" style="left:404px; top:48%;">LEG SIDE ▶</div>
+    <div class="topbar">
+      <div class="brand">GAMING <span>REMOTE</span></div>
+      <div class="tabs"><div class="tab">🏏 BATTING</div><div class="tab on">BOWLING</div></div>
+    </div>
+    <div class="modes">
+      <div class="mode">STEERING</div><div class="mode">TILT</div><div class="mode">CONTROLLER</div><div class="mode">ARROWS</div><div class="mode">FLY</div><div class="mode on">🏏 CRICKET</div>
+    </div>
+    <div class="divider"></div>
+    <div class="swipelab">BALL KI JAGAH — DRAG KARO</div>
+    <div class="cluster">
+      <div class="cap">DELIVERY BUTTONS</div>
+      <div class="grid">
+        <div class="rb on"><div class="t">SEEDHI<br>BALL</div><div class="k">S</div></div>
+        <div class="rb"><div class="t">VARIATION<br>1</div><div class="k">A</div></div>
+        <div class="rb"><div class="t">VARIATION<br>2</div><div class="k">D</div></div>
+        <div class="rb"><div class="t">VARIATION<br>3</div><div class="k">W</div></div>
+        <div class="rb"><div class="t">SLOWER</div><div class="k">Shift</div></div>
+        <div class="rb"><div class="t">PAUSE</div></div>
+        <div class="rb"><div class="t">MENU</div></div>
+        <div class="rb"><div class="t">CAMERA<br>ULTA</div></div>
+      </div>
+    </div>
+    <div class="hint">Pehle <b>drag karke ball ki jagah</b> set karo, phir delivery button dabao</div>
+  </div>
+</body>
+</html>

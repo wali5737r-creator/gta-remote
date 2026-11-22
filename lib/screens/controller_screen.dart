@@ -13,6 +13,7 @@ import '../services/settings_service.dart';
 import '../widgets/analog_stick.dart';
 import '../widgets/camera_pad.dart';
 import '../widgets/car_pedal.dart';
+import '../widgets/cricket_gesture_area.dart';
 import '../widgets/fly_stick.dart';
 import '../widgets/hold_surface.dart';
 import '../widgets/joystick.dart';
@@ -63,6 +64,15 @@ import 'settings_screen.dart';
 ///   saath), RACE + DOWN compact pedals, beech me CAMERA pad +
 ///   EXIT/MAP; HORN/MISSION FLY me nahi. Cheat typer reliable
 ///   hua (har send ka boolean jawab + retries). HID descriptor
+///   phir bhi bilkul nahi badla — saara kaam Dart me hai.
+/// - v7: CRICKET mode — EA Sports Cricket 07 ke liye alag
+///   stage jo driving stage ki jagah aati hai: BATTING (puri
+///   screen par swipe = shot, simt = arrow keys; shot buttons
+///   FRONT FOOT S / BACK FOOT W / ADVANCE D; LOFT = Shift hold;
+///   tap = ball chorna) aur BOWLING (drag = marker ki arrow
+///   keys, delivery buttons S/A/D/W/Shift). Saare buttons aik
+///   hi taraf chhote gol (76 dp) hain; CAMERA pad is mode me
+///   nahi (Cricket 07 sirf keyboard par hai). HID descriptor
 ///   phir bhi bilkul nahi badla — saara kaam Dart me hai.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
@@ -277,6 +287,8 @@ class _ControllerScreenState extends State<ControllerScreen>
   @override
   void dispose() {
     _bannerTimer?.cancel();
+    _cricketShotTimer?.cancel();
+    _cricketShotTimer = null;
     _pwmTimer?.cancel();
     _pwmTimer = null;
     for (final timer in _arrowTailTimers.values) {
@@ -359,6 +371,11 @@ class _ControllerScreenState extends State<ControllerScreen>
     // hi purani simt ka hisaab pehli feed par galat key laga
     // sakta tha. (Source upar saaf ho chuka hai.)
     _resetFlyStick();
+    // CRICKET ki arzi haalat bhi saaf — shot ki khirki ka timer
+    // ruk jaye aur pasand FRONT FOOT par wapas aa jaye, warna
+    // mode switch ke baad purana timer nayi haalat par chal
+    // sakta tha. (Sources upar saaf ho chuke hain.)
+    _resetCricketState();
     // PWM engine bhi saaf — warna mode switch ke baad purani
     // steering pulse chalti rahegi. (Sources pehle saaf ho chuke
     // hain, is liye engine ko source-sync ki zaroorat nahi.)
@@ -694,6 +711,210 @@ class _ControllerScreenState extends State<ControllerScreen>
   }
 
   // ---------------------------------------------------------------------------
+  // CRICKET mode (v7) — EA Sports Cricket 07
+  // ---------------------------------------------------------------------------
+  //
+  // Cricket 07 sirf keyboard par hai — is mode me na CAMERA pad
+  // hai, na pedals. Do tabs hain: BATTING (swipe = shot) aur
+  // BOWLING (drag = marker). Game ki asal keys (us ke apne
+  // control documentation se — koi key ijad nahi ki gayi):
+  // batting S = front foot, W = back foot, D = advance / run,
+  // A = cancel run, Shift = lofted, arrows = shot ki simt,
+  // Esc = pause; bowling S = seedhi ball, A/D/W = variations,
+  // Shift = slower, arrows (lage hue) = marker ki harkat.
+
+  /// Kaun sa tab active hai: false = BATTING, true = BOWLING.
+  bool _cricketBowling = false;
+
+  /// Chuna hua shot (batting): FRONT FOOT (S) default hai.
+  /// Har clear-all par wapas FRONT FOOT ho jata hai
+  /// ([_resetCricketState]).
+  GameKey _cricketShotKey = GameKey.s;
+
+  /// LOFT button is waqt daba hua hai ya nahi. Ye sirf aik
+  /// haalat hai — khud koi key NAHI bhejti: Shift shot wale
+  /// snapshot me tabhi shamil hota hai jab swipe fire ho
+  /// (Cricket 07 me akela Shift kuch nahi karta — bilkul
+  /// waisay hi).
+  bool _cricketLoftHeld = false;
+
+  /// Swipe wale shot ki 120 ms wali khirki ka timer + nasal.
+  Timer? _cricketShotTimer;
+  int _cricketShotGeneration = 0;
+
+  /// Is se chhota swipe "tap" hai — koi shot nahi (ball chorna).
+  static const double _cricketSwipeMinDistance = 40;
+
+  /// Shot wala snapshot itni dair daba rehta hai — game ko aik
+  /// saaf, poora press mile (momentary presses ke 150 ms se
+  /// zara kam: shot ke baad agli ball par foran dusra swipe
+  /// bhi lag sake).
+  static const Duration _cricketShotDuration =
+      Duration(milliseconds: 120);
+
+  /// Bowling marker ki dead zone: drag ka vector kisi mehwar
+  /// par itne dp se aage jaye tab woh simt ki arrow lagti hai.
+  static const double _cricketMarkerDeadZone = 10;
+
+  /// CRICKET ki arzi haalat saaf — har clear-all ke saath
+  /// chalti hai (mode switch, tab switch, Settings khulna,
+  /// disconnect, background — sab raste). Sources _clearAllKeys
+  /// khud saaf karti hai; yahan sirf timer/nasal/jhande hain.
+  /// CAMERA ULTA is me NAHI hai — woh saved pasand hai
+  /// (Settings), arzi haalat nahi.
+  void _resetCricketState() {
+    _cricketShotTimer?.cancel();
+    _cricketShotTimer = null;
+    _cricketShotGeneration++;
+    _cricketLoftHeld = false;
+    _cricketShotKey = GameKey.s;
+  }
+
+  /// Batting tab: swipe khatam hua. Vector se 8-simti sector
+  /// banta hai; chuna hua shot (aur LOFT daba ho to Shift)
+  /// us ke saath aik hi snapshot me 120 ms ke liye jata hai.
+  ///
+  /// Simt ka hisaab (broadcast camera — game ki default):
+  /// swipe ki screen simt HI arrow combo hai:
+  ///   ↘ {Down, Right} on-drive   ↓ {Down} seedha
+  ///   ↙ {Down, Left} cover       ← {Left} point
+  ///   ↖ {Up, Left} third man     ↑ {Up} peeche (keeper ki taraf)
+  ///   ↗ {Up, Right} fine leg     → {Right} leg side
+  /// CAMERA ULTA on ho to dono mehwar ulta — hisaab se pehle
+  /// vector palat jata hai (sector +4 wali hi baat hai).
+  void _onCricketSwipe(Offset delta) {
+    if (!_driving ||
+        _driveMode != DriveMode.cricket ||
+        _cricketBowling) {
+      return;
+    }
+    var dx = delta.dx;
+    var dy = delta.dy;
+    if (delta.distance < _cricketSwipeMinDistance) {
+      // Tap hai — shot nahi. Cricket 07 me ball chorna matlab
+      // hai koi shot key hi na dabana; yahan bilkul wahi hota
+      // hai: kuch nahi jata.
+      return;
+    }
+    if (_settings.cricketCameraFlip) {
+      dx = -dx;
+      dy = -dy;
+    }
+    // 8-way sector: atan2 screen coordinates me hai (0° = dayein,
+    // 90° = neeche), is liye sector seedha neeche wali table hai.
+    final sector =
+        (((math.atan2(dy, dx) / (math.pi / 4)).round() % 8) + 8) % 8;
+    final keys = <GameKey>{};
+    switch (sector) {
+      case 0: // → leg side
+        keys.add(GameKey.arrowRight);
+      case 1: // ↘ on-drive
+        keys
+          ..add(GameKey.arrowDown)
+          ..add(GameKey.arrowRight);
+      case 2: // ↓ seedha
+        keys.add(GameKey.arrowDown);
+      case 3: // ↙ cover
+        keys
+          ..add(GameKey.arrowDown)
+          ..add(GameKey.arrowLeft);
+      case 4: // ← point
+        keys.add(GameKey.arrowLeft);
+      case 5: // ↖ third man
+        keys
+          ..add(GameKey.arrowUp)
+          ..add(GameKey.arrowLeft);
+      case 6: // ↑ peeche
+        keys.add(GameKey.arrowUp);
+      case 7: // ↗ fine leg
+        keys
+          ..add(GameKey.arrowUp)
+          ..add(GameKey.arrowRight);
+    }
+    keys.add(_cricketShotKey);
+    if (_cricketLoftHeld) keys.add(GameKey.shift);
+    _fireCricketShot(keys);
+    HapticFeedback.lightImpact();
+  }
+
+  /// Shot wala snapshot 'cricket_shot' source me 120 ms ke
+  /// liye lagao. Darmiyan me dusra swipe aa jaye to naya set
+  /// purani jagah le leta hai aur waqt dobara shuru hota hai
+  /// (generation guard — purana timer naye shot ko nahi kaat
+  /// sakta). Koi lockout NAHI hai: agli ball par foran dusra
+  /// shot lagna chahiye.
+  void _fireCricketShot(Set<GameKey> keys) {
+    final generation = ++_cricketShotGeneration;
+    _setSourceKeys('cricket_shot', keys);
+    _cricketShotTimer?.cancel();
+    _cricketShotTimer = Timer(_cricketShotDuration, () {
+      if (_cricketShotGeneration == generation) {
+        _setSourceKeys('cricket_shot', const {});
+      }
+    });
+  }
+
+  /// Bowling tab: drag ka vector → marker ki arrow keys
+  /// ('cricket_marker' source). Har mehwar azad hai — diagonal
+  /// drag par dono arrows aik saath lagti hain, bilkul game ke
+  /// asal marker ki tarah. CAMERA ULTA yahan NAHI lagta (woh
+  /// sirf batting swipes ke liye hai).
+  void _onCricketMarkerDrag(Offset delta) {
+    if (!_driving ||
+        _driveMode != DriveMode.cricket ||
+        !_cricketBowling) {
+      return;
+    }
+    final keys = <GameKey>{};
+    if (delta.dx <= -_cricketMarkerDeadZone) {
+      keys.add(GameKey.arrowLeft);
+    } else if (delta.dx >= _cricketMarkerDeadZone) {
+      keys.add(GameKey.arrowRight);
+    }
+    if (delta.dy <= -_cricketMarkerDeadZone) {
+      keys.add(GameKey.arrowUp);
+    } else if (delta.dy >= _cricketMarkerDeadZone) {
+      keys.add(GameKey.arrowDown);
+    }
+    _setSourceKeys('cricket_marker', keys);
+  }
+
+  /// Bowling drag khatam — marker ki tamam arrows chhor do.
+  void _onCricketMarkerEnd() {
+    _setSourceKeys('cricket_marker', const {});
+  }
+
+  /// BATTING/BOWLING tab badlo: pehle saari keys chhoro
+  /// (clear-all — shot ki khirki aur marker dono saaf), phir
+  /// tab badlo. Shot ki pasand bhi FRONT FOOT par wapas
+  /// (clear-all ka hissa).
+  void _switchCricketTab(bool bowling) {
+    if (_cricketBowling == bowling) return;
+    _clearAllKeys();
+    setState(() => _cricketBowling = bowling);
+    HapticFeedback.lightImpact();
+  }
+
+  /// Shot chuno (FRONT FOOT / BACK FOOT / ADVANCE) — sirf
+  /// pasand badalti hai, koi key nahi jati. Agla swipe isi
+  /// shot ko lagayega.
+  void _selectCricketShot(GameKey key) {
+    if (_cricketShotKey == key) return;
+    setState(() => _cricketShotKey = key);
+  }
+
+  /// CAMERA ULTA toggle — saved pasand hai (Settings service),
+  /// is liye wahan likhi jati hai. Settings badalte hi
+  /// controller ki aam discipline chalti hai: _onSettingsChanged
+  /// pehle saari keys saaf karti hai, phir screen dobara banti
+  /// hai — toggle ki roshni wahan se khud taaza ho jati hai.
+  void _toggleCricketCameraFlip() {
+    unawaited(
+      _settings.setCricketCameraFlip(!_settings.cricketCameraFlip),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Mode switching (FR-19/FR-20/FR-21/FR-22)
   // ---------------------------------------------------------------------------
 
@@ -717,6 +938,7 @@ class _ControllerScreenState extends State<ControllerScreen>
       DriveMode.controller => '🚗  DRIVING • CONTROLLER',
       DriveMode.arrows => '🚗  DRIVING • ARROWS',
       DriveMode.fly => '✈  DRIVING • FLY',
+      DriveMode.cricket => '🏏  CRICKET — Cricket 07',
     };
   }
 
@@ -759,6 +981,7 @@ class _ControllerScreenState extends State<ControllerScreen>
       DriveMode.controller => '🎮  CONTROLLER — steer with the stick',
       DriveMode.arrows => '◀ ▶  ARROWS — tap for a small turn',
       DriveMode.fly => '✈  FLY — one handle for planes & helicopters',
+      DriveMode.cricket => '🏏  CRICKET — swipe to bat, drag to bowl',
     });
   }
 
@@ -1110,7 +1333,11 @@ class _ControllerScreenState extends State<ControllerScreen>
                       // se saaf faasla (hisaab IMPROVEMENTS_V5 me).
                       // v6: FLY me MISSION nahi (jahaz me submission
                       // wala kaam nahi; Muhammad ki hidayat).
-                      if (_driving && _driveMode != DriveMode.fly)
+                      // v7: CRICKET me bhi nahi — woh GTA ki stage
+                      // hi nahi, wahan ye pill bekaar ghus jayegi.
+                      if (_driving &&
+                          _driveMode != DriveMode.fly &&
+                          _driveMode != DriveMode.cricket)
                         Positioned(
                           top: 82,
                           left: flip ? 32 : null,
@@ -1159,6 +1386,8 @@ class _ControllerScreenState extends State<ControllerScreen>
               DriveMode.arrows =>
                 _buildArrowsDrivingLayer(flip, clusterScale),
               DriveMode.fly => _buildFlyDrivingLayer(flip, clusterScale),
+              DriveMode.cricket =>
+                _buildCricketLayer(flip, clusterScale),
             }
           : _buildOnFootLayer(wheelSize, flip, clusterScale),
     );
@@ -1498,6 +1727,299 @@ class _ControllerScreenState extends State<ControllerScreen>
       key: const ValueKey('driving-fly'),
       children: [camera, handle, pedals],
     );
+  }
+
+  /// CRICKET mode ki layer (v7) — approved mockups
+  /// (v7-cricket-mode-4 batting, v7-cricket-bowling bowling):
+  /// aik taraf gesture hissa (upar BATTING/BOWLING tabs),
+  /// darmiyan me patli lakeer, dusri taraf SAARE buttons aik
+  /// hi cluster me — chhote gol 76 dp, 3 ke grid me, koi
+  /// button khincha hua (stretched) nahi. Flip controls par
+  /// cluster aur gesture tarafain badal lete hain — baqi
+  /// modes wali mirroring yahan bhi sasti par gayi (sirf
+  /// left/right ki qeemtain palat-ti hain).
+  ///
+  /// Geometry (640×360): stage top 84 (top bar ki dono satron
+  /// ke neeche, FLY wali hi hifazat). Cluster 252 chaura
+  /// (3 × 76 + 2 × 12) aur 252 uncha (3 satrain) — 260 unche
+  /// stage me beech me rehta hai; chhote screens par
+  /// clusterScale (0.86) use halka chhota karta hai, baqi
+  /// modes ki tarah. Gesture hissa = 640 − 16 (margin) − 252
+  /// (cluster) − 25 (lakeer + 2 × gap) − 16 (margin) = 331
+  /// chaura — 330 ki kam-az-kam shart poori. Gesture ka
+  /// neeche kinara bottom 72 par hai: centre ke ghost buttons
+  /// (Settings/Disconnect, x ≈ 266…374, y ≥ 300) se wahi
+  /// hifazat jo CAMERA pad ki hai. Cluster neeche tak ja
+  /// sakta hai kyunke woh x ≥ 372 se shuru hota hai — ghost
+  /// zone se bahar (visual kinara 371 par khatam hota hai).
+  Widget _buildCricketLayer(bool flip, double clusterScale) {
+    final gesture = Positioned(
+      top: 84,
+      bottom: 72,
+      left: flip ? 293 : 16,
+      right: flip ? 16 : 293,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CricketTabSwitch(
+            bowling: _cricketBowling,
+            onSelected: _switchCricketTab,
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _cricketBowling
+                ? CricketBowlingArea(
+                    onDragChanged: _onCricketMarkerDrag,
+                    onDragEnd: _onCricketMarkerEnd,
+                  )
+                : CricketBattingArea(onSwipe: _onCricketSwipe),
+          ),
+        ],
+      ),
+    );
+    final divider = Positioned(
+      top: 100,
+      bottom: 88,
+      left: flip ? null : 359,
+      right: flip ? 359 : null,
+      width: 1,
+      child: Container(color: Colors.white.withValues(alpha: 0.10)),
+    );
+    final cluster = Positioned(
+      top: 84,
+      bottom: 16,
+      left: flip ? 16 : null,
+      right: flip ? null : 16,
+      width: 252,
+      child: Transform.scale(
+        scale: clusterScale,
+        alignment: flip ? Alignment.centerLeft : Alignment.centerRight,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: _cricketBowling
+              ? _bowlingClusterRows()
+              : _battingClusterRows(),
+        ),
+      ),
+    );
+    return Stack(
+      key: const ValueKey('driving-cricket'),
+      children: [gesture, divider, cluster],
+    );
+  }
+
+  /// CRICKET ka gol button (76 dp) — [RoundButton] hi hai,
+  /// bas cricket ke rang aik jagah tay hain taake tamam
+  /// buttons bilkul aik jaise lagen: aam = gehra sabz glass,
+  /// selected/go = roshan sabz, LOFT = narangi (mockup wala).
+  Widget _cricketRoundButton({
+    required String label,
+    String? subLabel,
+    bool selected = false,
+    bool loft = false,
+    bool go = false,
+    VoidCallback? onTap,
+    ValueChanged<bool>? onHeldChanged,
+  }) {
+    final Color top;
+    final Color bottom;
+    final Color border;
+    if (loft) {
+      top = const Color(0xFF8A5A18);
+      bottom = const Color(0xFF4A2E08);
+      border = const Color(0xFFF7931E);
+    } else if (selected || go) {
+      top = const Color(0xFF1D6A38);
+      bottom = const Color(0xFF0E3D1F);
+      border = const Color(0xFF2EE66B);
+    } else {
+      top = const Color(0xFF16241B);
+      bottom = const Color(0xFF0A140D);
+      border = const Color(0xFF4B5563);
+    }
+    return RoundButton(
+      diameter: 76,
+      label: label,
+      subLabel: subLabel,
+      gradientTop: top,
+      gradientBottom: bottom,
+      borderColor: border,
+      lit: selected,
+      onTap: onTap,
+      onHeldChanged: onHeldChanged,
+    );
+  }
+
+  /// BATTING cluster ki teen satrain (mockup v7-cricket-mode-4):
+  /// shot chunna (FRONT FOOT / BACK FOOT / ADVANCE), phir
+  /// LOFT (hold) + RUN + CANCEL, aakhir me PAUSE + MENU +
+  /// CAMERA ULTA. RUN/CANCEL/PAUSE/MENU saaf-tap wale helper
+  /// ([_momentaryKeyPress], 150 ms + lockout) se jate hain.
+  List<Widget> _battingClusterRows() {
+    return [
+      Row(
+        children: [
+          _cricketRoundButton(
+            label: 'FRONT\nFOOT',
+            subLabel: 'S',
+            selected: _cricketShotKey == GameKey.s,
+            onTap: () => _selectCricketShot(GameKey.s),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'BACK\nFOOT',
+            subLabel: 'W',
+            selected: _cricketShotKey == GameKey.w,
+            onTap: () => _selectCricketShot(GameKey.w),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'ADVANCE',
+            subLabel: 'D',
+            selected: _cricketShotKey == GameKey.d,
+            onTap: () => _selectCricketShot(GameKey.d),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          _cricketRoundButton(
+            label: 'LOFT',
+            subLabel: 'Shift',
+            loft: true,
+            // Sirf haalat note hoti hai — Shift shot wale
+            // snapshot me swipe ke waqt shamil hota hai
+            // (_onCricketSwipe dekho). Akela LOFT dabane se
+            // koi key nahi jati, bilkul game ki tarah.
+            onHeldChanged: (held) => _cricketLoftHeld = held,
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'RUN',
+            subLabel: 'D',
+            go: true,
+            onTap: () => _momentaryKeyPress('cricket_run', GameKey.d),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'CANCEL',
+            subLabel: 'A',
+            onTap: () =>
+                _momentaryKeyPress('cricket_cancel', GameKey.a),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          _cricketRoundButton(
+            label: 'PAUSE',
+            subLabel: 'Esc',
+            onTap: () =>
+                _momentaryKeyPress('cricket_pause', GameKey.escape),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'MENU',
+            subLabel: 'S',
+            onTap: () => _momentaryKeyPress('cricket_menu', GameKey.s),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'CAMERA\nULTA',
+            subLabel: 'Flip',
+            selected: _settings.cricketCameraFlip,
+            onTap: _toggleCricketCameraFlip,
+          ),
+        ],
+      ),
+    ];
+  }
+
+  /// BOWLING cluster ki satrain (mockup v7-cricket-bowling):
+  /// delivery buttons + PAUSE + MENU + CAMERA ULTA.
+  ///
+  /// VARIATION 1/2/3 ke naam jaan-boojh kar aam (generic)
+  /// hain: kaunsi key konsi ball deti hai, ye BOWLER par
+  /// munhasir hai (fast bowler ki swing/cutter, spinner ki
+  /// dusri variations) aur game khud screen par har delivery
+  /// ka naam dikhata hai. Button par jhoota tay naam likhna
+  /// galat rahnumai hoti — is liye sirf number + asal key.
+  /// Saare delivery buttons momentary hain (150 ms saaf tap);
+  /// SLOWER sirf Shift modifier ka snapshot hai.
+  List<Widget> _bowlingClusterRows() {
+    return [
+      Row(
+        children: [
+          _cricketRoundButton(
+            label: 'SEEDHI\nBALL',
+            subLabel: 'S',
+            go: true,
+            onTap: () =>
+                _momentaryKeyPress('cricket_bowl_stock', GameKey.s),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'VARIATION\n1',
+            subLabel: 'A',
+            onTap: () =>
+                _momentaryKeyPress('cricket_bowl_var1', GameKey.a),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'VARIATION\n2',
+            subLabel: 'D',
+            onTap: () =>
+                _momentaryKeyPress('cricket_bowl_var2', GameKey.d),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          _cricketRoundButton(
+            label: 'VARIATION\n3',
+            subLabel: 'W',
+            onTap: () =>
+                _momentaryKeyPress('cricket_bowl_var3', GameKey.w),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'SLOWER',
+            subLabel: 'Shift',
+            onTap: () => _momentaryKeyPress(
+              'cricket_bowl_slower',
+              GameKey.shift,
+            ),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'PAUSE',
+            subLabel: 'Esc',
+            onTap: () =>
+                _momentaryKeyPress('cricket_pause', GameKey.escape),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          _cricketRoundButton(
+            label: 'MENU',
+            subLabel: 'S',
+            onTap: () => _momentaryKeyPress('cricket_menu', GameKey.s),
+          ),
+          const SizedBox(width: 12),
+          _cricketRoundButton(
+            label: 'CAMERA\nULTA',
+            subLabel: 'Flip',
+            selected: _settings.cricketCameraFlip,
+            onTap: _toggleCricketCameraFlip,
+          ),
+        ],
+      ),
+    ];
   }
 
   /// CONTROLLER mode ka RACE trigger — bara sabz hold button
@@ -2684,6 +3206,83 @@ class _FlyPedal extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// CRICKET ke BATTING | BOWLING tabs (v7) — SteerModeSwitch
+/// wali hi gol-patti shakal, cricket ke sabz rangon me.
+/// Tap par controller tab badalta hai (keys saaf karna usi
+/// ka kaam hai — ye widget sirf pasand batata hai).
+class _CricketTabSwitch extends StatelessWidget {
+  const _CricketTabSwitch({
+    required this.bowling,
+    required this.onSelected,
+  });
+
+  /// True = BOWLING tab active hai.
+  final bool bowling;
+
+  /// Naya tab chuna gaya (true = BOWLING).
+  final ValueChanged<bool> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF060C08).withValues(alpha: 0.7),
+        border: Border.all(
+          color: const Color(0xFF2EE66B).withValues(alpha: 0.45),
+        ),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _segment(
+            '🏏 BATTING',
+            active: !bowling,
+            onTap: () => onSelected(false),
+          ),
+          _segment(
+            'BOWLING',
+            active: bowling,
+            onTap: () => onSelected(true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment(
+    String label, {
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active
+              ? const Color(0xFF2EE66B).withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+            color: active
+                ? const Color(0xFF7BF79F)
+                : const Color(0xFFDFE9EF),
+          ),
+        ),
+      ),
     );
   }
 }

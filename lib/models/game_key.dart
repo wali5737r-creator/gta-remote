@@ -47,6 +47,15 @@ enum GameKey {
   numpad5(0x5D, 'Numpad 5'),
   numpad8(0x60, 'Numpad 8'),
 
+  // v7 (CRICKET mode): baqi do arrow keys. Up/Down v6 me FLY ke
+  // liye aaye thay; Left/Right Cricket 07 ki shot direction aur
+  // bowling marker ke liye chahiye thay — woh enum me thay hi
+  // nahi, is liye ab jud rahe hain. HID usages: Right = 0x4F,
+  // Left = 0x50. hidKeyOrder me bilkul aakhir mai hain, is liye
+  // purane tamam key sets ke report bytes na-badle rehte hain.
+  arrowRight(0x4F, 'ArrowRight'),
+  arrowLeft(0x50, 'ArrowLeft'),
+
   space(0x2C, 'Space'),
   enter(0x28, 'Enter'),
   escape(0x29, 'Esc'),
@@ -95,4 +104,8 @@ const List<GameKey> hidKeyOrder = [
   GameKey.numpad2,
   GameKey.numpad5,
   GameKey.numpad8,
+  // v7: CRICKET ki left/right arrows bhi bilkul aakhir mai —
+  // wahi byte-identity wala usool.
+  GameKey.arrowRight,
+  GameKey.arrowLeft,
 ];
