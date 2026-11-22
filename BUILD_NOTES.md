@@ -550,3 +550,98 @@ in SA, TAB answering the property prompt.
 - App label renamed to "Gaming Remote" per Muhammad's words ("remote ki jga gaming Remote likho").
 - Changed ONLY user-visible label/title strings: AndroidManifest android:label, MaterialApp title, connect/settings screens, pubspec description; version 5.0.1+3.
 - Deliberately UNCHANGED: HidKeyboardManager SDP_SETTINGS name/description ("AB GTA") — that is the cached Bluetooth HID record; changing it risks a Windows re-pair, so the laptop-side Bluetooth name stays "AB GTA".
+
+## v5.1 (2026-11-22) — cheat typer reliability + FLY mode
+
+### 1. Cheat typer reliability fix (owner-device bug in v5)
+
+Muhammad reported: cheat codes tapped in CHEATS do nothing in-game, while
+typing the same codes on the laptop keyboard works; normal remote keys fine.
+
+- **Kotlin finding (read-only, Kotlin NOT modified):** `HidKeyboardManager.kt`
+  `sendReport` (lines 671–695) returns `result.success(sent)` where `sent` is
+  the direct return value of `BluetoothHidDevice.sendReport(device,
+  REPORT_ID, data)` — `false` when the proxy/device is null, when not
+  `STATE_CONNECTED`, or on `SecurityException`. The boolean genuinely
+  reflects the Android HID stack accepting the report.
+- **The v5 bug:** Dart awaited the call but discarded the boolean, so a
+  dropped report was a silently dropped letter → corrupted code → no effect.
+- **v6 fix (`hid_service.dart`):** new `_sendRawReportReliable` — every send
+  awaited, boolean read; on `false`, wait 40 ms and retry, up to 2 retries
+  (3 attempts per report); still failing → typing aborts with a distinct
+  result. Timings slowed: key held **90 ms**, gap **70 ms** (was 55/40).
+  Same helper + timings for the GTA V console sequence (grave 0x35, 300 ms
+  settle, letters, Enter 0x28).
+- Return type is now `CheatSendResult { success, notConnected, sendFailed }`.
+  CHEATS screen: success → "Sent — check your game"; sendFailed → "Could not
+  send — check the connection and try again."; mid-type disconnect →
+  "Connection lost — the code was not fully typed."; the pre-tap
+  not-connected message is unchanged.
+- All v5 safety semantics kept: refuse when disconnected or already typing,
+  `releaseAllKeys()` first, per-letter connection check, raw sends bypass the
+  `_lastSentSignature` dedup (repeated letters stay real presses), `finally`
+  clears the flag, resets the signature, re-sends the current snapshot, plus
+  a reliable raw empty report on the abort path.
+
+### 2. FLY driving mode (planes & helicopters)
+
+Muhammad's corrected design (he rejected separate TURN/NOSE button
+clusters): **one handle** for turning AND pitch.
+
+- `DriveMode.fly('FLY')` appended; persisted like the other modes;
+  `DriveMode.byName` still falls back to STEERING for unknown names, so v5
+  stored values migrate safely. Mode pill: segment padding 9→7, font
+  11→10.5, letter spacing 0.8→0.5 so all five labels stay fully readable
+  at 640 dp.
+- New `FlyStick` widget (AnalogStick mechanics, two axes, four arrows
+  ▲▼◀▶ drawn on the base, sky-blue accent, HANDLE caption).
+  Controller feed `_feedFlyStick`, source `'flystick'`, dead zone engage
+  0.25 / release 0.18 (hysteresis), no PWM, no sensitivity multiplier:
+  - left → profile steer-left (A); right → steer-right (D)
+  - **up → `GameKey.arrowDown` = NOSE UP; down → `GameKey.arrowUp` =
+    NOSE DOWN** — intentional flight-stick inversion (GTA SA reads
+    ArrowDown as nose-up). Do not "fix" this.
+  - Diagonals work (both axes evaluated independently; the key-set
+    architecture sends both keys in one report). Release reports (0, 0)
+    → all four keys release. `_resetFlyStick()` runs inside
+    `_clearAllKeys()`, so mode switches / screen opens / disconnects are
+    safe exactly like other controls.
+- `GameKey.arrowUp(0x52)` / `arrowDown(0x51)` added, appended at the END of
+  `hidKeyOrder` — existing key-set report bytes are unchanged.
+- Layout (640×360): handle column 196 (stick 176), THROTTLE column 118
+  with compact `_FlyPedal` pads (RACE h118 "W — speed / climb", DOWN h84
+  "S — brake / descend"; full CarPedals are 192+148=340 tall and cannot
+  stack in the 260 stage), CAMERA column 270 wide with the pad plus
+  EXIT (F) / MAP (Esc) clean-press buttons under it, bottom 72 so the row
+  clears the centre ghost buttons. No HORN, no MISSION in FLY (pill
+  suppressed). Flip swaps handle ↔ pedals; pitch stays central.
+- Settings help gained one FLY line; the steering-modes help line now
+  lists FLY too. Mockup updated: `mockup/v6-fly-mode.html` (handle design).
+
+### 3. Rename
+
+Already applied earlier today as v5.0.1 (commit `b9cca6f`): manifest
+`android:label="Gaming Remote"`, MaterialApp title, connect/settings
+strings. Verified for v5.1: no `AB GTA` string remains under `lib/`;
+the Kotlin SDP name/description stays "AB GTA" on purpose (cached
+Bluetooth record — changing it risks a re-pair).
+
+### HID / re-pair
+
+**No re-pair needed.** ZERO changes under `android/` in v5.1
+(`git diff HEAD -- android/` empty before commit); descriptor + SDP + QOS
+block (Kotlin lines 59–142) md5 still
+`ba778a379ab87a7f50ec5d2810479153`, identical to v4/v5.
+
+### Version note
+
+pubspec is `5.1.0+3` as instructed. Version code 3 was already used by
+v5.0.1+3; Android accepts an equal-versionCode install over the same
+signature, and the versionName is higher. If a monotonic code is wanted
+later, bump to +4.
+
+### Not device-verified (owner's session decides)
+
+Cheat typing after the reliability fix (all three games), FLY handle feel
+in a plane/helicopter (incl. the pitch inversion in practice), DOWN pedal
+behaviour in the air, five-segment pill readability on the real phone.

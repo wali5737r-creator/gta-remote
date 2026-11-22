@@ -84,7 +84,7 @@ class _CheatsScreenState extends State<CheatsScreen> {
       _status = 'Typing ${cheat.code}…';
       _statusKind = _StatusKind.typing;
     });
-    final sent = await _hid.typeCheatCode(
+    final result = await _hid.typeCheatCode(
       cheat.code,
       useConsole: _game.useConsole,
     );
@@ -93,12 +93,20 @@ class _CheatsScreenState extends State<CheatsScreen> {
       _sending = false;
       _lastHidTyping = false;
       _typingCode = null;
-      if (sent) {
-        _status = 'Sent — check your game';
-        _statusKind = _StatusKind.done;
-      } else {
-        _status = 'Connection lost — the code was not fully typed.';
-        _statusKind = _StatusKind.error;
+      // v6: typer ab teen sachay nateejay deta hai — status bhi
+      // waisa hi sach bolta hai (v5 me har fail "connection lost"
+      // ban jata tha, halanke aksar link theek hota tha aur sirf
+      // aik report gira hota tha).
+      switch (result) {
+        case CheatSendResult.success:
+          _status = 'Sent — check your game';
+          _statusKind = _StatusKind.done;
+        case CheatSendResult.sendFailed:
+          _status = 'Could not send — check the connection and try again.';
+          _statusKind = _StatusKind.error;
+        case CheatSendResult.notConnected:
+          _status = 'Connection lost — the code was not fully typed.';
+          _statusKind = _StatusKind.error;
       }
     });
   }

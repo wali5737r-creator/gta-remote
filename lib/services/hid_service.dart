@@ -7,6 +7,11 @@ import '../models/game_key.dart';
 /// Laptop se Bluetooth connection ki haalat.
 enum HidConnection { disconnected, connecting, connected, disconnecting }
 
+/// Cheat typer ka nateeja (v6) — CHEATS screen is ke hisab se
+/// sach wala status dikhati hai: poora gaya, link hi nahi tha /
+/// darmiyan me kata, ya link tha magar report bhejna fail hua.
+enum CheatSendResult { success, notConnected, sendFailed }
+
 /// Kotlin side se aane wali taaza tareen haalat (FR-6: haqiqat callbacks se
 /// aati hai, andazay se nahi).
 class HidState {
@@ -382,7 +387,7 @@ class HidService {
   }
 
   // ---------------------------------------------------------------------------
-  // Cheat typer (v5)
+  // Cheat typer (v5; v6 me reliable)
   // ---------------------------------------------------------------------------
 
   bool _isTypingCheat = false;
@@ -391,24 +396,52 @@ class HidService {
   /// screen is se apne buttons band/chaalu rakhti hai.
   bool get isTypingCheat => _isTypingCheat;
 
-  /// Aik raw keyboard report seedha channel par — snapshot wali
-  /// dedup ([_lastSentSignature]) ko chhuta nahi. [keycode] null
-  /// ho to khali (sab keys up) report jata hai.
-  Future<void> _sendRawKeyboardReport(int? keycode) async {
-    try {
-      await _methods.invokeMethod<bool>('sendReport', <String, dynamic>{
-        'modifier': 0,
-        'keycodes': keycode == null ? <int>[] : <int>[keycode],
-      });
-    } on PlatformException {
-      // Link kat gaya ho to agli check (isConnected) type rok degi.
+  /// Aik raw keyboard report channel par, pakki koshish ke saath
+  /// (v6 reliability fix) — snapshot wali dedup
+  /// ([_lastSentSignature]) ko chhuta nahi. [keycode] null ho to
+  /// khali (sab keys up) report jata hai.
+  ///
+  /// Kotlin taraf `sendReport` ka boolean ASAL hai: woh seedha
+  /// `BluetoothHidDevice.sendReport(...)` ki return value hai
+  /// (proxy/device na ho, STATE_CONNECTED na ho, ya
+  /// SecurityException ho to false). v5 me Dart is boolean ko
+  /// await karke phenk deta tha — gira hua report (gira hua harf)
+  /// bilkul khamoshi se ghayab ho jata tha, aur cheat ka lafz
+  /// kharab ho kar game me kuch nahi karta tha. Ab har send ka
+  /// jawab parha jata hai: false aaye to 40 ms ruk kar dobara
+  /// koshish — kul 3 koshishain (1 + 2 retries). Teeno fail hon
+  /// to false — caller typing rok kar sach batata hai.
+  Future<bool> _sendRawReportReliable(int? keycode) async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+      }
+      bool sent;
+      try {
+        sent = await _methods.invokeMethod<bool>(
+              'sendReport',
+              <String, dynamic>{
+                'modifier': 0,
+                'keycodes': keycode == null ? <int>[] : <int>[keycode],
+              },
+            ) ??
+            false;
+      } on PlatformException {
+        sent = false;
+      }
+      if (sent) return true;
     }
+    return false;
   }
 
   /// Cheat [code] ko asal keyboard ki tarah harf-ba-harf type karo
-  /// (v5, CHEATS screen). GTA ke cheat systems type kiye hue lafz
-  /// ko pehchante hain — har harf aik saaf down/up press hai
-  /// (55 ms down, 40 ms gap), bilkul ungli se type karne jaisa.
+  /// (v5, CHEATS screen; v6 me reliable). GTA ke cheat systems
+  /// type kiye hue lafz ko pehchante hain — har harf aik saaf
+  /// down/up press hai. v6 timings jaan-boojh kar sust hain
+  /// (90 ms down, 70 ms gap): v5 ke 55/40 ms par Android HID
+  /// stack / host kuch reports gira deta tha aur harf ghayab ho
+  /// jata tha — ab har report await hoti hai aur us ka boolean
+  /// jawab parha jata hai ([_sendRawReportReliable]).
   ///
   /// [useConsole] true (GTA V): pehle grave key (`) se console
   /// kholo, 300 ms ruko, code type karo, aakhir me Enter.
@@ -416,47 +449,66 @@ class HidService {
   ///
   /// Shuru me [releaseAllKeys] hota hai taake koi lagi hui key
   /// (masalan RACE) code ke harfon se na mil jaye. Aakhir me —
-  /// kamyabi ho ya darmiyan me link kat jaye — typing flag saaf,
+  /// kamyabi ho ya darmiyan me rukawat aaye — typing flag saaf,
   /// dedup signature reset aur maujooda (khali) snapshot dobara
   /// jata hai, taake aam key reports phir se bilkul saaf chalein.
   ///
-  /// Return: true = poora code type ho gaya; false = connected
-  /// nahi tha, pehle se typing chal rahi thi, ya link darmiyan
-  /// me kat gaya (code aadha gaya hoga — game me asar nahi hoga,
-  /// kyunke cheat poora lafz mangta hai).
-  Future<bool> typeCheatCode(
+  /// Return ([CheatSendResult]):
+  /// - success — poora code type ho gaya.
+  /// - notConnected — shuru me hi connected nahi tha, ya link
+  ///   darmiyan me kat gaya (code aadha gaya hoga — game me asar
+  ///   nahi hoga, kyunke cheat poora lafz mangta hai).
+  /// - sendFailed — link maujood tha magar aik report 3
+  ///   koshishon ke baad bhi nahi gaya; typing wahin rok di.
+  ///   (Pehle se typing chal rahi ho to bhi yahi aata hai —
+  ///   CHEATS screen apne _busy guard se wahan pohanchti hi
+  ///   nahi, ye sirf andar ki hifazat hai.)
+  Future<CheatSendResult> typeCheatCode(
     String code, {
     required bool useConsole,
   }) async {
-    if (!_current.isConnected || _isTypingCheat) return false;
+    if (_isTypingCheat) return CheatSendResult.sendFailed;
+    if (!_current.isConnected) return CheatSendResult.notConnected;
     _isTypingCheat = true;
     var completed = false;
     try {
       releaseAllKeys();
       if (useConsole) {
         // GTA V ka console grave key (0x35) se khulta hai.
-        await _sendRawKeyboardReport(0x35);
-        await Future<void>.delayed(const Duration(milliseconds: 60));
-        await _sendRawKeyboardReport(null);
+        if (!await _sendRawReportReliable(0x35)) {
+          return CheatSendResult.sendFailed;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 90));
+        if (!await _sendRawReportReliable(null)) {
+          return CheatSendResult.sendFailed;
+        }
         await Future<void>.delayed(const Duration(milliseconds: 300));
       }
       for (final unit in code.toUpperCase().codeUnits) {
-        if (!_current.isConnected) return false;
+        if (!_current.isConnected) return CheatSendResult.notConnected;
         if (unit < 0x41 || unit > 0x5A) continue; // sirf A–Z
         // HID keycode: A = 0x04 … Z = 0x1D.
-        await _sendRawKeyboardReport(0x04 + (unit - 0x41));
-        await Future<void>.delayed(const Duration(milliseconds: 55));
-        await _sendRawKeyboardReport(null);
-        await Future<void>.delayed(const Duration(milliseconds: 40));
+        if (!await _sendRawReportReliable(0x04 + (unit - 0x41))) {
+          return CheatSendResult.sendFailed;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 90));
+        if (!await _sendRawReportReliable(null)) {
+          return CheatSendResult.sendFailed;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 70));
       }
       if (useConsole) {
-        if (!_current.isConnected) return false;
-        await _sendRawKeyboardReport(0x28); // Enter
-        await Future<void>.delayed(const Duration(milliseconds: 60));
-        await _sendRawKeyboardReport(null);
+        if (!_current.isConnected) return CheatSendResult.notConnected;
+        if (!await _sendRawReportReliable(0x28)) {
+          return CheatSendResult.sendFailed; // Enter
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 90));
+        if (!await _sendRawReportReliable(null)) {
+          return CheatSendResult.sendFailed;
+        }
       }
       completed = true;
-      return true;
+      return CheatSendResult.success;
     } finally {
       _isTypingCheat = false;
       // Raw reports ne dedup ko nahi chhua — phir bhi signature
@@ -465,10 +517,11 @@ class HidService {
       _lastSentSignature = '';
       _sendCurrentReport();
       if (!completed) {
-        // Darmiyan me kata to khali report pakki jaye (upar wali
+        // Darmiyan me ruka to khali report PAKKI jaye (upar wali
         // _sendCurrentReport dedup se ruk sakti hai agar snapshot
         // pehle se khali tha) — koi harf PC par daba na reh jaye.
-        await _sendRawKeyboardReport(null);
+        // Ye bhi reliable helper se jata hai.
+        await _sendRawReportReliable(null);
       }
     }
   }

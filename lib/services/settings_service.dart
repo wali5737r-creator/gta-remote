@@ -23,17 +23,22 @@ enum SteeringSensitivity {
   }
 }
 
-/// Driving me steering ka tareeqa (v4 — chaar modes).
+/// Driving me steering ka tareeqa (v4 — chaar modes; v6 — paanch).
 ///
 /// v2/v3 me ye sirf aik bool tha (STEERING ya TILT); v4 me CONTROLLER
 /// (analog stick) aur ARROWS (tap wale steer buttons) bhi jud gaye.
+/// v6 me FLY jud gaya — jahaz/helicopter ke liye aik handle
+/// (left/right = mor A/D, up/down = naak ArrowDown/ArrowUp).
 /// Purane modes ki behaviour bilkul nahi badli — ye sirf pasand ki
 /// pehchan hai, controller screen is ke hisab se layer chunti hai.
+/// [byName] na-maloom naam par hamesha STEERING deta hai, is liye
+/// purani save values (ya koi ajnabi value) crash nahi karti.
 enum DriveMode {
   steering('STEERING'),
   tilt('TILT'),
   controller('CONTROLLER'),
-  arrows('ARROWS');
+  arrows('ARROWS'),
+  fly('FLY');
 
   const DriveMode(this.label);
 

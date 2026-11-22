@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../services/settings_service.dart';
 
-/// Driving mode ka switch (v4) — top bar ke beech me:
-/// STEERING | TILT | CONTROLLER | ARROWS.
+/// Driving mode ka switch (v4; v6 me paanch segments) — top bar
+/// ke beech me: STEERING | TILT | CONTROLLER | ARROWS | FLY.
 ///
 /// Labels English hain (approved mockup v4-modes.html ke mutabiq),
 /// active hissa garam orange gradient par safed text. Sirf driving
 /// mode me nazar aata hai; paidal mode me steering ka koi sawal hi
 /// nahi, is liye wahan chhupa rehta hai.
 ///
-/// Chaar segments tang screens (640 dp) par bhi status/mode pills
-/// ke saath fit hon, is liye padding/font v2 ke 2-segment switch se
-/// halka sa compact hai — style bilkul wahi hai.
+/// Segments tang screens (640 dp) par bhi status/mode pills ke
+/// saath fit hon, is liye padding/font compact hai — style bilkul
+/// wahi hai. v6 me paanchwein segment (FLY) ki jagah banane ke
+/// liye horizontal padding 9 → 7, font 11 → 10.5 aur letter
+/// spacing 0.8 → 0.5 hua; kul switch chauraai takreeban v5 wali
+/// hi rehti hai aur paancho labels poore parhe jate hain
+/// (hisaab IMPROVEMENTS_V6.md me).
 class SteerModeSwitch extends StatelessWidget {
   const SteerModeSwitch({
     super.key,
@@ -60,7 +64,7 @@ class SteerModeSwitch extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 9),
         decoration: BoxDecoration(
           gradient: active
               ? const LinearGradient(
@@ -82,9 +86,9 @@ class SteerModeSwitch extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
+            letterSpacing: 0.5,
             color: active ? Colors.white : const Color(0xFF9FB0C3),
           ),
         ),

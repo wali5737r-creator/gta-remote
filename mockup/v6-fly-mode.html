@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gaming Remote — v6 FLY mode mockup (handle design)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body { background:#05070B; color:#E2E8F0; padding:28px; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:#94A3B8; font-size:13px; margin-bottom:18px; max-width:900px; line-height:1.5; }
+  .phone { width:960px; height:540px; border-radius:26px; overflow:hidden; position:relative;
+           background:radial-gradient(1200px 700px at 20% -10%, #16202E 0%, #0A0F16 55%, #06090F 100%);
+           border:1px solid #263242; box-shadow:0 30px 80px rgba(0,0,0,.6); }
+  /* top bar */
+  .topbar { position:absolute; top:0; left:0; right:0; padding:10px 14px 0 14px; }
+  .row1 { display:flex; align-items:center; gap:10px; }
+  .brand { font-weight:800; letter-spacing:2px; font-size:13px; color:#E2E8F0; }
+  .brand span { color:#38BDF8; }
+  .status { margin-left:auto; display:flex; align-items:center; gap:7px; background:rgba(8,10,14,.7);
+            border:1px solid rgba(56,189,248,.45); border-radius:999px; padding:7px 12px; font-size:12px; color:#CBD5E1; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#22C55E; box-shadow:0 0 8px #22C55E; }
+  .switch { display:flex; background:rgba(8,10,14,.7); border:1px solid rgba(251,146,60,.45); border-radius:999px; overflow:hidden; }
+  .switch div { padding:8px 11px; font-size:11.5px; font-weight:800; letter-spacing:.6px; color:#9FB0C3; }
+  .switch .on { background:linear-gradient(#F97316,#C2410C); color:#fff; border-radius:999px; }
+  .modepill { background:rgba(8,10,14,.7); border:1px solid #334155; border-radius:999px; padding:8px 14px; font-size:12px; font-weight:700; color:#E2E8F0; }
+  .row2 { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+  .pill2 { background:rgba(8,10,14,.7); border:1px solid #7C3AED; color:#C4B5FD; border-radius:999px; padding:6px 13px; font-size:11.5px; font-weight:700; }
+  .pill2.g { border-color:#0E7490; color:#67E8F9; }
+  /* stage columns */
+  .col { position:absolute; top:118px; }
+  .cap { text-align:center; font-size:12px; font-weight:800; letter-spacing:3px; color:#7DD3FC; margin-bottom:8px; }
+  /* handle */
+  .handlecol { left:24px; width:264px; top:104px; }
+  .stick { width:238px; height:238px; margin:6px auto 0 auto; border-radius:50%; position:relative;
+           background:radial-gradient(circle at 50% 38%, #1D2A38 0%, #0B0E13 78%);
+           border:3px solid #374151; box-shadow:0 16px 34px rgba(0,0,0,.55); }
+  .knob { position:absolute; left:50%; top:50%; width:104px; height:104px; margin:-52px 0 0 -52px; border-radius:50%;
+          background:radial-gradient(circle at 35% 30%, #9FB0C3, #39424F); border:3px solid #38BDF8;
+          box-shadow:0 10px 22px rgba(0,0,0,.6); }
+  .arr { position:absolute; color:rgba(125,211,252,.8); font-size:19px; font-weight:800; }
+  .aU { top:8px; left:50%; margin-left:-9px; } .aD { bottom:8px; left:50%; margin-left:-9px; }
+  .aL { left:10px; top:50%; margin-top:-11px; } .aR { right:10px; top:50%; margin-top:-11px; }
+  .handlecap { text-align:center; margin-top:10px; font-size:12px; font-weight:700; letter-spacing:4px; color:#8FA3B8; }
+  .dirlabels { display:flex; justify-content:space-between; margin-top:8px; padding:0 4px; font-size:11px; color:#7DD3FC; font-weight:700; }
+  /* camera */
+  .camcol { left:322px; width:330px; }
+  .pad { height:196px; border-radius:16px; border:1.5px dashed rgba(125,211,252,.4); background:rgba(56,189,248,.05);
+         display:flex; align-items:center; justify-content:center; color:#7DD3FC; font-size:13px; letter-spacing:2px; }
+  .exitmap { display:flex; justify-content:center; gap:14px; margin-top:10px; }
+  .round { width:66px; height:66px; border-radius:50%; background:linear-gradient(#2A3442,#11161D); border:1.5px solid #475569;
+           display:flex; flex-direction:column; align-items:center; justify-content:center; color:#E2E8F0; }
+  .round b { font-size:14px; } .round small { font-size:8.5px; color:#94A3B8; letter-spacing:1px; }
+  /* pedals */
+  .pedcol { right:24px; width:150px; }
+  .pedal { border-radius:15px; text-align:center; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .race { height:150px; background:linear-gradient(#22C55E,#15803D); border:1.5px solid rgba(134,239,172,.6); box-shadow:0 0 18px rgba(34,197,94,.25); }
+  .down { height:104px; margin-top:12px; background:linear-gradient(#EF4444,#B91C1C); border:1.5px solid rgba(252,165,165,.6); box-shadow:0 0 18px rgba(239,68,68,.25); }
+  .pedal b { font-size:20px; letter-spacing:2.5px; }
+  .pedal small { font-size:11px; opacity:.85; margin-top:3px; }
+  .note { margin-top:16px; color:#94A3B8; font-size:13px; line-height:1.6; max-width:960px; }
+  .note b { color:#E2E8F0; }
+</style>
+</head>
+<body>
+  <h1>Gaming Remote — v6 FLY mode (Muhammad's corrected design: ONE handle)</h1>
+  <p class="sub">Muhammad rejected separate TURN/NOSE button clusters: one handle controls turning AND the nose.
+  Drag the handle left/right to turn, push it up to climb (nose up), pull it down to descend (nose down) — corners do both at once.
+  RACE is the throttle; DOWN brakes on the ground and sinks in the air. No HORN, no MISSION in FLY.</p>
+
+  <div class="phone">
+    <div class="topbar">
+      <div class="row1">
+        <div class="brand">GAMING <span>REMOTE</span></div>
+        <div class="switch"><div>STEERING</div><div>TILT</div><div>CONTROLLER</div><div>ARROWS</div><div class="on">FLY</div></div>
+        <div class="status"><div class="dot"></div>Connected — LAPTOP</div>
+        <div class="modepill">✈ FLYING</div>
+      </div>
+      <div class="row2"><div class="pill2">★ CHEATS</div><div class="pill2 g">📖 GUIDE</div></div>
+    </div>
+
+    <div class="col handlecol">
+      <div class="cap">HANDLE</div>
+      <div class="stick">
+        <div class="arr aU">▲</div><div class="arr aD">▼</div>
+        <div class="arr aL">◀</div><div class="arr aR">▶</div>
+        <div class="knob"></div>
+      </div>
+      <div class="handlecap">— STICK —</div>
+      <div class="dirlabels"><span>◀ TURN</span><span>▲ NOSE UP</span><span>▼ NOSE DOWN</span><span>TURN ▶</span></div>
+    </div>
+
+    <div class="col camcol">
+      <div class="cap">CAMERA</div>
+      <div class="pad">DRAG — CAMERA</div>
+      <div class="exitmap">
+        <div class="round"><b>F</b><small>EXIT</small></div>
+        <div class="round"><b>Esc</b><small>MAP</small></div>
+      </div>
+    </div>
+
+    <div class="col pedcol">
+      <div class="cap">THROTTLE</div>
+      <div class="pedal race"><b>RACE</b><small>W — speed / climb</small></div>
+      <div class="pedal down"><b>DOWN</b><small>S — brake / descend</small></div>
+    </div>
+  </div>
+
+  <p class="note"><b>Handle mapping (flight-stick inversion, intentional):</b> handle left = A, right = D,
+  handle <b>up</b> = ArrowDown = nose UP, handle <b>down</b> = ArrowUp = nose DOWN. Diagonal pushes turn and climb/descend together.
+  Letting go centres the handle and releases all four keys. Camera pad stays in the middle; flipping the controls swaps handle ↔ pedals.</p>
+</body>
+</html>

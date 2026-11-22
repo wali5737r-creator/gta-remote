@@ -28,6 +28,14 @@ enum GameKey {
   /// (v5, MISSION button). Ye toggle key hai — host par Caps Lock
   /// ki haalat badalti hai, bilkul asal keyboard ki tarah.
   capsLock(0x39, 'Caps'),
+
+  // v6 (FLY mode): jahaz ki naak upar/neeche ke liye asli arrow
+  // keys. GTA SA mai ArrowDown = naak UPAR, ArrowUp = naak
+  // NEECHE (flight-stick convention) — ye ulta asar jaan-boojh
+  // kar hai; controller ki FLY layer mai trace maujood hai.
+  arrowUp(0x52, 'ArrowUp'),
+  arrowDown(0x51, 'ArrowDown'),
+
   space(0x2C, 'Space'),
   enter(0x28, 'Enter'),
   escape(0x29, 'Esc'),
@@ -65,4 +73,9 @@ const List<GameKey> hidKeyOrder = [
   GameKey.space,
   GameKey.enter,
   GameKey.escape,
+  // v6: FLY pitch keys list ke aakhir mai — purani keys ki
+  // relative order bilkul nahi badli, is liye purane key-set
+  // snapshots ke report bytes pehle jaise hi rehte hain.
+  GameKey.arrowUp,
+  GameKey.arrowDown,
 ];

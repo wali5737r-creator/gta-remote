@@ -13,6 +13,7 @@ import '../services/settings_service.dart';
 import '../widgets/analog_stick.dart';
 import '../widgets/camera_pad.dart';
 import '../widgets/car_pedal.dart';
+import '../widgets/fly_stick.dart';
 import '../widgets/hold_surface.dart';
 import '../widgets/joystick.dart';
 import '../widgets/premium_background.dart';
@@ -33,7 +34,7 @@ import 'settings_screen.dart';
 /// Layout (Muhammad ki design, v2 — Racing Cockpit; v3/v4 additions):
 /// - Top bar: status pill (left) + mode pill (right); driving me
 ///   beech me drive-mode switch (STEERING | TILT | CONTROLLER |
-///   ARROWS).
+///   ARROWS | FLY).
 /// - ENTER/EXIT CAR gol button pedals ke cluster ke UPAR, HANDBRAKE ke
 ///   saath — dono modes me bilkul wahi jagah.
 /// - Pedals: BRAKE pehla (left), RACE baad me (right).
@@ -57,6 +58,12 @@ import 'settings_screen.dart';
 ///   wali key ka saaf tap); paidal mode me TAB pill (property
 ///   khareedna waghera). HID descriptor bilkul nahi badla —
 ///   saara kaam Dart me hai.
+/// - v6: FLY mode — jahaz/helicopter ke liye aik handle (mor
+///   A/D + naak ArrowDown/ArrowUp, flight-stick inversion ke
+///   saath), RACE + DOWN compact pedals, beech me CAMERA pad +
+///   EXIT/MAP; HORN/MISSION FLY me nahi. Cheat typer reliable
+///   hua (har send ka boolean jawab + retries). HID descriptor
+///   phir bhi bilkul nahi badla — saara kaam Dart me hai.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
 
@@ -348,6 +355,10 @@ class _ControllerScreenState extends State<ControllerScreen>
     // key ko dobara nahi laga sakta. (Timers yahin cancel hote
     // hain; sources upar saaf ho chuke hain.)
     _resetArrows();
+    // FLY handle ki simtain bhi saaf — warna naye mode me ghuste
+    // hi purani simt ka hisaab pehli feed par galat key laga
+    // sakta tha. (Source upar saaf ho chuka hai.)
+    _resetFlyStick();
     // PWM engine bhi saaf — warna mode switch ke baad purani
     // steering pulse chalti rahegi. (Sources pehle saaf ho chuke
     // hain, is liye engine ko source-sync ki zaroorat nahi.)
@@ -586,6 +597,77 @@ class _ControllerScreenState extends State<ControllerScreen>
   }
 
   // ---------------------------------------------------------------------------
+  // FLY steering (v6) — jahaz/helicopter ka handle
+  // ---------------------------------------------------------------------------
+
+  /// Handle ke mehwar kis simt me lage hue hain: −1 / 0 / +1.
+  /// X: −1 = left mor, +1 = right mor.
+  /// Y: −1 = handle UPAR, +1 = handle NEECHE.
+  int _flyXDir = 0;
+  int _flyYDir = 0;
+
+  /// Handle ki dead zone: mehwar 0.25 se aage jaye to key lagti
+  /// hai, 0.18 se neeche aaye to chhut-ti hai — beech wali patti
+  /// maujooda haalat rakhti hai, taake kinare par key flicker
+  /// na kare (hysteresis).
+  static const double _flyEngage = 0.25;
+  static const double _flyRelease = 0.18;
+
+  /// FlyStick ke dono mehwar → 'flystick' source ki keys.
+  ///
+  /// TRACE (IMPROVEMENTS_V6.md me bhi bilkul yahi hai):
+  /// - handle LEFT   → profile.steerLeftKey (A)
+  /// - handle RIGHT  → profile.steerRightKey (D)
+  /// - handle UPAR   → GameKey.arrowDown — NOSE UP. Ye ulta
+  ///   lagta hai magar SAHI hai: GTA SA me ArrowDown jahaz ki
+  ///   naak UPAR uthata hai (flight-stick convention). Ise
+  ///   "seedha" karne ki koshish NA karna.
+  /// - handle NEECHE → GameKey.arrowUp — NOSE DOWN (usi
+  ///   convention ka dusra rukh).
+  ///
+  /// Dono mehwar azad hain: diagonal (mor + climb/descend aik
+  /// saath) mumkin hai — key-set architecture dono keys aik hi
+  /// report me bhej deta hai. Stick chhute hi widget (0, 0)
+  /// bhejta hai aur chaaro keys chhut jati hain. Koi PWM nahi —
+  /// keys seedhi hold hoti hain jab tak mehwar dead zone se
+  /// bahar hai. Settings ki sensitivity yahan nahi lagti (woh
+  /// wheel/stick ki cheez hai).
+  void _feedFlyStick(double x, double y) {
+    if (!_driving || _driveMode != DriveMode.fly) return;
+    var xd = _flyXDir;
+    if (x >= _flyEngage) {
+      xd = 1;
+    } else if (x <= -_flyEngage) {
+      xd = -1;
+    } else if (x.abs() <= _flyRelease) {
+      xd = 0;
+    }
+    var yd = _flyYDir;
+    if (y <= -_flyEngage) {
+      yd = -1;
+    } else if (y >= _flyEngage) {
+      yd = 1;
+    } else if (y.abs() <= _flyRelease) {
+      yd = 0;
+    }
+    _flyXDir = xd;
+    _flyYDir = yd;
+    final profile = _settings.profile;
+    final keys = <GameKey>{};
+    if (xd < 0) keys.add(profile.steerLeftKey);
+    if (xd > 0) keys.add(profile.steerRightKey);
+    if (yd < 0) keys.add(GameKey.arrowDown); // NOSE UP (inversion)
+    if (yd > 0) keys.add(GameKey.arrowUp); // NOSE DOWN
+    _setSourceKeys('flystick', keys);
+  }
+
+  /// FLY handle ki haalat saaf (mode switch / clear-all par).
+  void _resetFlyStick() {
+    _flyXDir = 0;
+    _flyYDir = 0;
+  }
+
+  // ---------------------------------------------------------------------------
   // Mode switching (FR-19/FR-20/FR-21/FR-22)
   // ---------------------------------------------------------------------------
 
@@ -608,6 +690,7 @@ class _ControllerScreenState extends State<ControllerScreen>
       DriveMode.tilt => '🚗  DRIVING • TILT',
       DriveMode.controller => '🚗  DRIVING • CONTROLLER',
       DriveMode.arrows => '🚗  DRIVING • ARROWS',
+      DriveMode.fly => '✈  DRIVING • FLY',
     };
   }
 
@@ -649,6 +732,7 @@ class _ControllerScreenState extends State<ControllerScreen>
       DriveMode.tilt => '📱  TILT — tilt your phone',
       DriveMode.controller => '🎮  CONTROLLER — steer with the stick',
       DriveMode.arrows => '◀ ▶  ARROWS — tap for a small turn',
+      DriveMode.fly => '✈  FLY — one handle for planes & helicopters',
     });
   }
 
@@ -998,7 +1082,9 @@ class _ControllerScreenState extends State<ControllerScreen>
                       // controls wali taraf upar. Top bar ki dusri
                       // satar ke neeche; wheel, pad aur cluster sab
                       // se saaf faasla (hisaab IMPROVEMENTS_V5 me).
-                      if (_driving)
+                      // v6: FLY me MISSION nahi (jahaz me submission
+                      // wala kaam nahi; Muhammad ki hidayat).
+                      if (_driving && _driveMode != DriveMode.fly)
                         Positioned(
                           top: 82,
                           left: flip ? 32 : null,
@@ -1046,6 +1132,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                 _buildControllerDrivingLayer(flip, clusterScale),
               DriveMode.arrows =>
                 _buildArrowsDrivingLayer(flip, clusterScale),
+              DriveMode.fly => _buildFlyDrivingLayer(flip, clusterScale),
             }
           : _buildOnFootLayer(wheelSize, flip, clusterScale),
     );
@@ -1251,6 +1338,139 @@ class _ControllerScreenState extends State<ControllerScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// FLY column ke upar wali chhoti sky-blue sar-khiti (caption).
+  Widget _flyCaption(String text) {
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 2.5,
+        color: Color(0xFF7DD3FC),
+      ),
+    );
+  }
+
+  /// FLY mode ki driving layer (v6) — Muhammad ki corrected
+  /// design: aik HANDLE (stick) jo mor aur naak dono deta hai,
+  /// dusri taraf RACE + DOWN pedals, beech me CAMERA pad aur us
+  /// ke neeche EXIT/MAP. Na HORN hai na MISSION (pill build() me
+  /// FLY ke liye band hai). Tafseel + hisaab IMPROVEMENTS_V6.md.
+  ///
+  /// Geometry (640×360): side margins 16; handle column 196
+  /// (stick 176 + HANDLE caption); pedals column 118; beech ke
+  /// gaps 12; CAMERA column = 640 − 16 − 196 − 12 − 118 − 12
+  /// − 16 = 270 chauri. Side columns top 84, bottom 16; CAMERA
+  /// column bottom 72 taake EXIT/MAP row centre ke ghost
+  /// buttons (y ≥ 295) se na takraye — baqi modes ke pad wali
+  /// hi hifazat. Flip par handle ↔ pedals tarafain badalti
+  /// hain; CAMERA beech me rehta hai (pitch hamesha central).
+  ///
+  /// Pedals poore [CarPedal] widgets nahi hain: RACE (192) +
+  /// BRAKE (148) upar-neeche 340 ban-te hain jo 260 ke stage
+  /// me nahi sama sakte — is liye [_FlyPedal] unhi rangon wale
+  /// compact pedal pads hain (hisaab QA doc me).
+  Widget _buildFlyDrivingLayer(bool flip, double clusterScale) {
+    final profile = _settings.profile;
+    final handle = Positioned(
+      left: flip ? null : 16,
+      right: flip ? 16 : null,
+      top: 84,
+      bottom: 16,
+      width: 196,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Transform.scale(
+            scale: clusterScale,
+            child: FlyStick(size: 176, onAxesChanged: _feedFlyStick),
+          ),
+        ],
+      ),
+    );
+    final pedals = Positioned(
+      left: flip ? 16 : null,
+      right: flip ? null : 16,
+      top: 84,
+      bottom: 16,
+      width: 118,
+      child: Transform.scale(
+        scale: clusterScale,
+        alignment: Alignment.bottomCenter,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _flyCaption('THROTTLE'),
+            const SizedBox(height: 6),
+            _FlyPedal(
+              height: 118,
+              label: 'RACE',
+              subLabel: '${profile.accelerateKey.label} — speed / climb',
+              gradientTop: const Color(0xFF22C55E),
+              gradientBottom: const Color(0xFF15803D),
+              borderColor: const Color(0xFF86EFAC),
+              glow: const Color(0xFF22C55E),
+              onHeldChanged: (held) {
+                _setSourceKeys(
+                  'race',
+                  held ? {profile.accelerateKey} : const {},
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            _FlyPedal(
+              height: 84,
+              label: 'DOWN',
+              subLabel: '${profile.brakeKey.label} — brake / descend',
+              gradientTop: const Color(0xFFEF4444),
+              gradientBottom: const Color(0xFFB91C1C),
+              borderColor: const Color(0xFFFCA5A5),
+              glow: const Color(0xFFEF4444),
+              onHeldChanged: (held) {
+                _setSourceKeys(
+                  'brake',
+                  held ? {profile.brakeKey} : const {},
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    final camera = Positioned(
+      left: flip ? 146 : 224,
+      right: flip ? 224 : 146,
+      top: 84,
+      bottom: 72,
+      child: Column(
+        children: [
+          _flyCaption('CAMERA'),
+          const SizedBox(height: 6),
+          Expanded(
+            child: CameraPad(
+              onMove: (dx, dy) => _hid.moveMouse(dx, dy),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _enterExitButton(),
+              const SizedBox(width: 12),
+              _mapButton(),
+            ],
+          ),
+        ],
+      ),
+    );
+    return Stack(
+      key: const ValueKey('driving-fly'),
+      children: [camera, handle, pedals],
     );
   }
 
@@ -2350,6 +2570,96 @@ class _GamepadSilhouettePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// FLY mode ka compact pedal pad (v6) — [CarPedal] ke rangon
+/// wala hold button, magar baghair metal arm/labels ke, taake
+/// RACE + DOWN upar-neeche aik column me sama jayein (poore
+/// CarPedal 192 + 148 = 340 dp hote hain; stage sirf 260 dp
+/// hai — hisaab IMPROVEMENTS_V6.md me). Behaviour bilkul
+/// pedal wala hai: [HoldSurface] ungli capture karta hai,
+/// slide-out par bhi press nahi toot-ta, dispose par press
+/// khud chhut jata hai.
+class _FlyPedal extends StatelessWidget {
+  const _FlyPedal({
+    required this.height,
+    required this.label,
+    required this.subLabel,
+    required this.gradientTop,
+    required this.gradientBottom,
+    required this.borderColor,
+    required this.glow,
+    required this.onHeldChanged,
+  });
+
+  final double height;
+  final String label;
+  final String subLabel;
+  final Color gradientTop;
+  final Color gradientBottom;
+  final Color borderColor;
+  final Color glow;
+  final ValueChanged<bool> onHeldChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return HoldSurface(
+      onHeldChanged: onHeldChanged,
+      builder: (context, pressed) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          width: 118,
+          height: height,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [gradientTop, gradientBottom],
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: borderColor.withValues(alpha: pressed ? 0.95 : 0.55),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: glow.withValues(alpha: pressed ? 0.4 : 0.15),
+                blurRadius: pressed ? 20 : 10,
+              ),
+              const BoxShadow(
+                color: Color(0x73000000),
+                blurRadius: 14,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subLabel,
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 0.5,
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// Neeche centre ke chhote translucent icon buttons.

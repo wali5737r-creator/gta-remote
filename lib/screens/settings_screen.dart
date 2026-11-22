@@ -177,7 +177,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'changes how you steer: STEERING = touch wheel, '
                       'TILT = tilt the phone left/right, CONTROLLER = '
                       'gamepad stick, ARROWS = tap the ◀ ▶ buttons '
-                      '(a short tap makes a small turn). The steering '
+                      '(a short tap makes a small turn), FLY = one '
+                      'handle, for planes and helicopters. The steering '
                       'settings above (range, dead zone) are for the '
                       'touch wheel; sensitivity also applies to the '
                       'CONTROLLER stick.'),
@@ -203,6 +204,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'the wheel). MISSION starts vehicle missions '
                       '— sit in a taxi, police car or ambulance and '
                       'tap it (San Andreas: Caps Lock, GTA V: E).'),
+                  _HelpLine('FLY mode (the switch at the top, while '
+                      'driving) is for planes and helicopters: one '
+                      'HANDLE does everything — push it left/right '
+                      'to turn, push it up to climb (nose up), pull '
+                      'it down to descend (nose down); a corner '
+                      'push turns and climbs together. RACE is the '
+                      'throttle, DOWN slows down or sinks. The '
+                      'CAMERA pad still turns the camera. There is '
+                      'no HORN or MISSION in FLY mode.'),
                   _HelpLine('Everything is free — no ads, no time '
                       'limit, no internet needed.'),
                 ],
