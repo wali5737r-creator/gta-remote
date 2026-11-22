@@ -13,6 +13,21 @@ enum GameKey {
 
   /// SA me crouch toggle (v4).
   c(0x06, 'C'),
+
+  /// SA / SA Definitive me horn (v5). GTA V me horn E hai —
+  /// profile tay karta hai konsi key jayegi.
+  h(0x0B, 'H'),
+
+  /// GTA V me horn aur interact/submission key (v5).
+  e(0x08, 'E'),
+
+  /// SA me property khareedna waghera (v5, paidal mode ka TAB button).
+  tab(0x2B, 'Tab'),
+
+  /// SA me taxi/vigilante jaisi vehicle missions shuru karna
+  /// (v5, MISSION button). Ye toggle key hai — host par Caps Lock
+  /// ki haalat badalti hai, bilkul asal keyboard ki tarah.
+  capsLock(0x39, 'Caps'),
   space(0x2C, 'Space'),
   enter(0x28, 'Enter'),
   escape(0x29, 'Esc'),
@@ -43,6 +58,10 @@ const List<GameKey> hidKeyOrder = [
   GameKey.d,
   GameKey.f,
   GameKey.c,
+  GameKey.h,
+  GameKey.e,
+  GameKey.tab,
+  GameKey.capsLock,
   GameKey.space,
   GameKey.enter,
   GameKey.escape,

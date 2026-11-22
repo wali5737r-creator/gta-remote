@@ -17,6 +17,9 @@ class ControllerTopBar extends StatelessWidget {
     required this.onModeSelected,
     this.driveMode = DriveMode.steering,
     this.onDriveModeSelected,
+    this.flipControls = false,
+    this.onCheatsTap,
+    this.onGuideTap,
   });
 
   final HidState hidState;
@@ -34,28 +37,124 @@ class ControllerTopBar extends StatelessWidget {
   /// Naya drive mode chuna gaya. Null ho to switch nahi banta.
   final ValueChanged<DriveMode>? onDriveModeSelected;
 
+  /// Controls ultay hain ya nahi — dusri satar (CHEATS / GUIDE)
+  /// action-cluster wali taraf lagti hai, jahan neeche jagah
+  /// zyada hai (v5).
+  final bool flipControls;
+
+  /// Dusri satar ke buttons (v5). Dono null hon to dusri satar
+  /// nahi banti aur bar pehle jaisi aik satar ki rehti hai.
+  final VoidCallback? onCheatsTap;
+  final VoidCallback? onGuideTap;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final showNavRow = onCheatsTap != null || onGuideTap != null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Status pill ko bachi hui jagah tak mehdood rakho — lamba
-        // laptop naam mode pill ko screen se bahar nahi dhakelta.
-        Flexible(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: _StatusPill(hidState: hidState),
-          ),
+        Row(
+          children: [
+            // Status pill ko bachi hui jagah tak mehdood rakho — lamba
+            // laptop naam mode pill ko screen se bahar nahi dhakelta.
+            Flexible(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _StatusPill(hidState: hidState),
+              ),
+            ),
+            if (driving && onDriveModeSelected != null) ...[
+              const SizedBox(width: 12),
+              SteerModeSwitch(
+                mode: driveMode,
+                onSelected: onDriveModeSelected!,
+              ),
+            ],
+            const SizedBox(width: 12),
+            _ModePill(driving: driving, onModeSelected: onModeSelected),
+          ],
         ),
-        if (driving && onDriveModeSelected != null) ...[
-          const SizedBox(width: 12),
-          SteerModeSwitch(
-            mode: driveMode,
-            onSelected: onDriveModeSelected!,
+        if (showNavRow) ...[
+          const SizedBox(height: 6),
+          // CHEATS / GUIDE — action-cluster wali taraf (na-flip par
+          // dayein, flip par bayein), kyunke us taraf ke controls
+          // neeche se shuru hote hain aur satar ko jagah milti hai.
+          Row(
+            mainAxisAlignment:
+                flipControls ? MainAxisAlignment.start : MainAxisAlignment.end,
+            children: [
+              if (onCheatsTap != null)
+                _NavPill(
+                  icon: Icons.star,
+                  iconColor: const Color(0xFFF7A81E),
+                  label: 'CHEATS',
+                  onTap: onCheatsTap!,
+                ),
+              if (onCheatsTap != null && onGuideTap != null)
+                const SizedBox(width: 8),
+              if (onGuideTap != null)
+                _NavPill(
+                  icon: Icons.menu_book,
+                  iconColor: const Color(0xFFCBD5E1),
+                  label: 'GUIDE',
+                  onTap: onGuideTap!,
+                ),
+            ],
           ),
         ],
-        const SizedBox(width: 12),
-        _ModePill(driving: driving, onModeSelected: onModeSelected),
       ],
+    );
+  }
+}
+
+/// Dusri satar ka chhota pill button (CHEATS / GUIDE) — bar ki
+/// apni styling (gehra gola, orange kinara) me (v5).
+class _NavPill extends StatelessWidget {
+  const _NavPill({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 26,
+        padding: const EdgeInsets.symmetric(horizontal: 11),
+        decoration: BoxDecoration(
+          color: const Color(0xFF080A0E).withValues(alpha: 0.7),
+          border: Border.all(
+            color: const Color(0xFFFB923C).withValues(alpha: 0.35),
+          ),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: iconColor),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+                color: Color(0xFFCBD5E1),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

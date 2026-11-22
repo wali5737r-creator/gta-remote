@@ -20,6 +20,8 @@ import '../widgets/round_button.dart';
 import '../widgets/steer_arrows.dart';
 import '../widgets/steering_wheel.dart';
 import '../widgets/top_bar.dart';
+import 'cheats_screen.dart';
+import 'guide_screen.dart';
 import 'settings_screen.dart';
 
 /// Controller screen — Driving aur On Foot dono modes.
@@ -47,6 +49,14 @@ import 'settings_screen.dart';
 ///   dono khalis izafa hain, purane modes bilkul nahi badle. Paidal
 ///   mode me AIM (mouse right, dabaye rakho), CROUCH (C tap) aur
 ///   weapon switch (mouse wheel ticks) bhi jud gaye.
+/// - v5: top bar ki dusri satar me CHEATS (tap karo, remote code
+///   type kar deta hai) aur GUIDE (missions ki rehnumai) ke pills;
+///   har driving mode me HORN (STEERING me wheel ka hub, TILT me
+///   BRAKE ke upar gol button, CONTROLLER/ARROWS me cluster ke
+///   saath gol button) aur MISSION pill (vehicle side-missions
+///   wali key ka saaf tap); paidal mode me TAB pill (property
+///   khareedna waghera). HID descriptor bilkul nahi badla —
+///   saara kaam Dart me hai.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
 
@@ -894,6 +904,32 @@ class _ControllerScreenState extends State<ControllerScreen>
     _updateTiltSubscription();
   }
 
+  /// CHEATS screen kholo (v5) — Settings wala hi safety rasta:
+  /// pehle saari keys chhoro aur tilt band karo, taake codes
+  /// browse karte hue game me koi key atki na rahe. Wapas aane
+  /// par landscape aur tilt subscription taaza ho jate hain.
+  Future<void> _openCheats() async {
+    setState(() => _clearAllKeys());
+    _stopTilt();
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const CheatsScreen()),
+    );
+    _applyLandscape();
+    _updateTiltSubscription();
+  }
+
+  /// MISSIONS GUIDE kholo (v5) — wahi safety rasta jo CHEATS ka
+  /// hai: keys pehle chhoro, tilt band, wapas par sab taaza.
+  Future<void> _openGuide() async {
+    setState(() => _clearAllKeys());
+    _stopTilt();
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const GuideScreen()),
+    );
+    _applyLandscape();
+    _updateTiltSubscription();
+  }
+
   Future<void> _reconnect() async {
     final address = _settings.lastDeviceAddress;
     if (address == null || _reconnecting) return;
@@ -939,10 +975,11 @@ class _ControllerScreenState extends State<ControllerScreen>
                   final wheelSize = (constraints.maxHeight * 0.60)
                       .clamp(shortScreen ? 165.0 : 185.0, 230.0);
                   final clusterScale = shortScreen ? 0.86 : 1.0;
+                  final flip = _settings.flipControls;
                   return Stack(
                     children: [
                       Positioned(
-                        top: 8,
+                        top: 6,
                         left: 16,
                         right: 16,
                         child: ControllerTopBar(
@@ -951,9 +988,23 @@ class _ControllerScreenState extends State<ControllerScreen>
                           onModeSelected: _switchMode,
                           driveMode: _driveMode,
                           onDriveModeSelected: _switchDriveMode,
+                          flipControls: flip,
+                          onCheatsTap: _openCheats,
+                          onGuideTap: _openGuide,
                         ),
                       ),
                       _buildModeContent(wheelSize, clusterScale),
+                      // MISSION pill (v5) — sirf driving me, steering
+                      // controls wali taraf upar. Top bar ki dusri
+                      // satar ke neeche; wheel, pad aur cluster sab
+                      // se saaf faasla (hisaab IMPROVEMENTS_V5 me).
+                      if (_driving)
+                        Positioned(
+                          top: 82,
+                          left: flip ? 32 : null,
+                          right: flip ? null : 32,
+                          child: _missionButton(),
+                        ),
                       if (_driving && _driveMode == DriveMode.steering)
                         _buildAngleReadout(),
                       _buildGhostButtons(),
@@ -1048,6 +1099,17 @@ class _ControllerScreenState extends State<ControllerScreen>
             ),
           ),
         ),
+        // HORN (v5) — TILT me wheel nahi hota, is liye BRAKE ke
+        // upar alag gol button (BRAKE: bottom 16, oonchai 148 →
+        // upar ki kinari 164; horn bottom 176 = 12 ka gap).
+        // Brake wali taraf hi rehta hai — flip par us ke saath
+        // dusri taraf chala jata hai.
+        Positioned(
+          left: flip ? null : 53,
+          right: flip ? 53 : null,
+          bottom: 176,
+          child: _hornButton(profile),
+        ),
       ],
     );
   }
@@ -1108,6 +1170,13 @@ class _ControllerScreenState extends State<ControllerScreen>
                 _brakeTrigger(profile),
                 const SizedBox(height: 12),
                 _topActionRow(profile),
+                const SizedBox(height: 10),
+                // HORN (v5) — action row ke neeche, cluster ki
+                // chauraai (198) ke beech me gol button.
+                SizedBox(
+                  width: 198,
+                  child: Center(child: _hornButton(profile)),
+                ),
               ],
             ),
           ),
@@ -1160,6 +1229,16 @@ class _ControllerScreenState extends State<ControllerScreen>
             alignment: flip ? Alignment.bottomRight : Alignment.bottomLeft,
             child: arrows,
           ),
+        ),
+        // HORN (v5) — arrows wali taraf, pair ke upar gol button
+        // (pair ki upar wali kinari bottom 84 + 88 = 172 from
+        // bottom; horn top 126 → pair se 12 ka gap, MISSION pill
+        // (neeche 82..114) se bhi 12 ka gap).
+        Positioned(
+          left: flip ? null : 97,
+          right: flip ? 97 : null,
+          top: 126,
+          child: _hornButton(profile, diameter: 50),
         ),
         Positioned(
           left: flip ? 26 : null,
@@ -1250,6 +1329,11 @@ class _ControllerScreenState extends State<ControllerScreen>
         _wheelAngle.value = angle;
         _feedWheelSteer(angle);
       },
+      // Hub dabaye rakho = HORN (v5) — source 'horn', profile
+      // ki horn key (SA: H, GTA V: E).
+      onHornHeldChanged: (held) {
+        _setSourceKeys('horn', held ? {profile.hornKey} : const {});
+      },
     );
     final cluster = _buildDrivingCluster(profile);
     // Pad ki kinariyaan: wheel wali taraf 34 + wheel + 12 gap;
@@ -1329,6 +1413,13 @@ class _ControllerScreenState extends State<ControllerScreen>
                 forward: true,
                 onTick: () => _hid.wheelTick(1),
               ),
+              const SizedBox(width: 12),
+              // TAB (v5) — property khareedne waghera ke liye
+              // ("Press TAB to buy the property"): CROUCH/MAP
+              // wala hi saaf-tap helper. Row ab joystick wali
+              // taraf 44..232 tak hai — CAMERA pad (246 se) se
+              // 14 ka gap barqarar.
+              _tabButton(),
             ],
           ),
         ),
@@ -1397,6 +1488,45 @@ class _ControllerScreenState extends State<ControllerScreen>
     );
   }
 
+  /// HORN gol button (v5) — dabaye rakho to horn bajta hai,
+  /// chhoro to band (source 'horn', profile ki horn key: SA me
+  /// H, GTA V me E — emergency gariyon me yahi key siren bhi
+  /// chalati hai). TILT aur CONTROLLER/ARROWS modes me istemal
+  /// hota hai; STEERING me horn wheel ke hub me hai.
+  Widget _hornButton(GameProfile profile, {double diameter = 58}) {
+    return RoundButton(
+      diameter: diameter,
+      label: 'HORN',
+      subLabel: profile.hornKey.label,
+      gradientTop: const Color(0xFFF59E0B),
+      gradientBottom: const Color(0xFFB45309),
+      borderColor: const Color(0xFFFCD34D),
+      onHeldChanged: (held) {
+        _setSourceKeys('horn', held ? {profile.hornKey} : const {});
+      },
+    );
+  }
+
+  /// MISSION pill (v5, sirf driving) — vehicle side-missions
+  /// (taxi, vigilante, ambulance…) shuru karne wali key ka aik
+  /// saaf tap: SA me Caps Lock, GTA V me E (profile ki
+  /// submissionKey), MAP/JUMP wala hi 150 ms + lockout helper.
+  /// SA me ye key toggle hai — dusra tap mission band karta hai,
+  /// bilkul asal keyboard ki tarah.
+  Widget _missionButton() {
+    final profile = _settings.profile;
+    return _PillButton(
+      width: 108,
+      height: 32,
+      label: 'MISSION',
+      subLabel: profile.submissionKey.label,
+      gradientTop: const Color(0xFF0369A1),
+      gradientBottom: const Color(0xFF0C4A6E),
+      borderColor: const Color(0xFF38BDF8),
+      onTap: () => _momentaryKeyPress('mission', profile.submissionKey),
+    );
+  }
+
   /// ATTACK button (v3, sirf paidal mode) — mouse ka LEFT button.
   /// Dabaye rakho to daba rehta hai (larai/fire), chhoro to chhut
   /// jata hai. Mouse button ki haalat HidService rakhta hai aur har
@@ -1452,6 +1582,22 @@ class _ControllerScreenState extends State<ControllerScreen>
       gradientBottom: const Color(0xFF1F2937),
       borderColor: const Color(0xFF9CA3AF),
       onTap: () => _momentaryKeyPress('crouch', GameKey.c),
+    );
+  }
+
+  /// TAB pill (v5, sirf paidal mode) — Tab key ka aik saaf tap,
+  /// weapon-switch pair ke saath wali row me. GTA ke woh lamhe
+  /// jahan game kehta hai "Press TAB" (property khareedna,
+  /// stats dekhna) — pehle remote me ye key thi hi nahi.
+  Widget _tabButton() {
+    return _PillButton(
+      width: 72,
+      height: 48,
+      label: 'TAB',
+      gradientTop: const Color(0xFF4B5563),
+      gradientBottom: const Color(0xFF1F2937),
+      borderColor: const Color(0xFF9CA3AF),
+      onTap: () => _momentaryKeyPress('tab', GameKey.tab),
     );
   }
 

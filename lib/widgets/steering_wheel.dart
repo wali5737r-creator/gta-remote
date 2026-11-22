@@ -21,6 +21,7 @@ class SteeringWheel extends StatefulWidget {
     required this.rangeDeg,
     required this.sensitivity,
     this.onAngleChanged,
+    this.onHornHeldChanged,
   });
 
   final double size;
@@ -34,6 +35,11 @@ class SteeringWheel extends StatefulWidget {
   /// Angle badle to (degrees, −range..+range) — readout aur PWM
   /// steering engine dono ke liye.
   final ValueChanged<double>? onAngleChanged;
+
+  /// Hub (beech wala gola, radius = size × 0.185) ko dabaye
+  /// rakhna = HORN (v5): true = horn dabna shuru, false = chhora.
+  /// Null ho to hub pehle ki tarah sirf steering ka hissa hai.
+  final ValueChanged<bool>? onHornHeldChanged;
 
   @override
   State<SteeringWheel> createState() => _SteeringWheelState();
@@ -53,6 +59,11 @@ class _SteeringWheelState extends State<SteeringWheel>
   /// chalta hai: koi gesture arena nahi, koi touch-slop deri nahi —
   /// dusri ungli RACE dabaye to wheel foran aur sahi jawab deta hai.
   int? _pointer;
+
+  /// Jo ungli hub par hai — wo steering nahi, HORN dabati hai (v5).
+  /// Steering wali ungli se alag pointer, dono saath chal sakte hain.
+  int? _hornPointer;
+  bool _hornHeld = false;
 
   late final AnimationController _springController;
   Animation<double>? _springAnimation;
@@ -76,6 +87,9 @@ class _SteeringWheelState extends State<SteeringWheel>
     // Key chhorne ki zimmedari ab controller ke PWM engine ki hai —
     // mode/steer switch par woh khud saaf hota hai (aur widget khatam
     // hona hamesha unhi switches se hota hai).
+    // Horn is se alag hai: hub dabaye hue widget khatam ho to
+    // horn ki key foran chhor do — PC par dabi na reh jaye (v5).
+    if (_hornHeld) widget.onHornHeldChanged?.call(false);
     _springController.dispose();
     super.dispose();
   }
@@ -112,6 +126,22 @@ class _SteeringWheelState extends State<SteeringWheel>
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    // Hub ke andar wali ungli = HORN (v5) — pehle check karo,
+    // steering claim ho chuka ho tab bhi dusri ungli horn daba
+    // sakti hai. Hub ka paint radius size × 0.185 hai; centre ke
+    // 24dp andar steering pehle bhi khamosh tha (centre ignore),
+    // is liye ye tabdeeli steering ke feel ko nahi badalti.
+    if (widget.onHornHeldChanged != null && _hornPointer == null) {
+      final centre = Offset(widget.size / 2, widget.size / 2);
+      if ((event.localPosition - centre).distance <=
+          widget.size * 0.185) {
+        _hornPointer = event.pointer;
+        _hornHeld = true;
+        widget.onHornHeldChanged!(true);
+        setState(() {});
+        return;
+      }
+    }
     if (_pointer != null) return; // pehli ungli hi malik hai
     _pointer = event.pointer;
     _springController.stop();
@@ -120,6 +150,7 @@ class _SteeringWheelState extends State<SteeringWheel>
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
+    if (event.pointer == _hornPointer) return; // horn wali ungli
     if (event.pointer != _pointer) return;
     final current = _fingerAngle(event.localPosition);
     if (current == null) return; // centre ke paas — purana angle rakho
@@ -138,6 +169,13 @@ class _SteeringWheelState extends State<SteeringWheel>
   }
 
   void _handlePointerUp(PointerEvent event) {
+    if (event.pointer == _hornPointer) {
+      _hornPointer = null;
+      _hornHeld = false;
+      widget.onHornHeldChanged?.call(false);
+      if (mounted) setState(() {});
+      return;
+    }
     if (event.pointer != _pointer) return;
     _pointer = null;
     _lastFingerAngleRad = null;
@@ -182,6 +220,39 @@ class _SteeringWheelState extends State<SteeringWheel>
               ),
             ),
           ),
+          // HORN label hub ke beech — ghumta nahi, chhuta nahi
+          // (pointer Listener ke paas hi rehta hai) (v5).
+          if (widget.onHornHeldChanged != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: _hornHeld
+                          ? const Color(0xFFF97316)
+                          : Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFFF97316)
+                            .withValues(alpha: _hornHeld ? 1 : 0.55),
+                      ),
+                    ),
+                    child: Text(
+                      'HORN',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                        color:
+                            _hornHeld ? Colors.black : const Color(0xFFFB923C),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

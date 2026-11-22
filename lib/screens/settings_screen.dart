@@ -190,7 +190,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Hold AIM to aim, then fire with ATTACK. CROUCH '
                       'toggles crouching. The ◀ ▶ WPN buttons above '
                       'the joystick switch weapons (hold to cycle '
-                      'fast).'),
+                      'fast). TAB taps the Tab key — for moments like '
+                      '"Press TAB to buy the property".'),
+                  _HelpLine('CHEATS (top of the controller): tap a '
+                      'cheat and the remote types the code into your '
+                      'game — San Andreas, Vice City and GTA 5. Stand '
+                      'in the game world first (not in a menu). GUIDE '
+                      'explains how missions work and where to find '
+                      'them.'),
+                  _HelpLine('While driving: hold HORN to sound the '
+                      'horn (in STEERING mode it is the middle of '
+                      'the wheel). MISSION starts vehicle missions '
+                      '— sit in a taxi, police car or ambulance and '
+                      'tap it (San Andreas: Caps Lock, GTA V: E).'),
                   _HelpLine('Everything is free — no ads, no time '
                       'limit, no internet needed.'),
                 ],

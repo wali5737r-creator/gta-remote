@@ -382,6 +382,98 @@ class HidService {
   }
 
   // ---------------------------------------------------------------------------
+  // Cheat typer (v5)
+  // ---------------------------------------------------------------------------
+
+  bool _isTypingCheat = false;
+
+  /// Koi cheat code is waqt type ho raha hai ya nahi — CHEATS
+  /// screen is se apne buttons band/chaalu rakhti hai.
+  bool get isTypingCheat => _isTypingCheat;
+
+  /// Aik raw keyboard report seedha channel par — snapshot wali
+  /// dedup ([_lastSentSignature]) ko chhuta nahi. [keycode] null
+  /// ho to khali (sab keys up) report jata hai.
+  Future<void> _sendRawKeyboardReport(int? keycode) async {
+    try {
+      await _methods.invokeMethod<bool>('sendReport', <String, dynamic>{
+        'modifier': 0,
+        'keycodes': keycode == null ? <int>[] : <int>[keycode],
+      });
+    } on PlatformException {
+      // Link kat gaya ho to agli check (isConnected) type rok degi.
+    }
+  }
+
+  /// Cheat [code] ko asal keyboard ki tarah harf-ba-harf type karo
+  /// (v5, CHEATS screen). GTA ke cheat systems type kiye hue lafz
+  /// ko pehchante hain — har harf aik saaf down/up press hai
+  /// (55 ms down, 40 ms gap), bilkul ungli se type karne jaisa.
+  ///
+  /// [useConsole] true (GTA V): pehle grave key (`) se console
+  /// kholo, 300 ms ruko, code type karo, aakhir me Enter.
+  /// SA / VC: seedha type — koi console nahi.
+  ///
+  /// Shuru me [releaseAllKeys] hota hai taake koi lagi hui key
+  /// (masalan RACE) code ke harfon se na mil jaye. Aakhir me —
+  /// kamyabi ho ya darmiyan me link kat jaye — typing flag saaf,
+  /// dedup signature reset aur maujooda (khali) snapshot dobara
+  /// jata hai, taake aam key reports phir se bilkul saaf chalein.
+  ///
+  /// Return: true = poora code type ho gaya; false = connected
+  /// nahi tha, pehle se typing chal rahi thi, ya link darmiyan
+  /// me kat gaya (code aadha gaya hoga — game me asar nahi hoga,
+  /// kyunke cheat poora lafz mangta hai).
+  Future<bool> typeCheatCode(
+    String code, {
+    required bool useConsole,
+  }) async {
+    if (!_current.isConnected || _isTypingCheat) return false;
+    _isTypingCheat = true;
+    var completed = false;
+    try {
+      releaseAllKeys();
+      if (useConsole) {
+        // GTA V ka console grave key (0x35) se khulta hai.
+        await _sendRawKeyboardReport(0x35);
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        await _sendRawKeyboardReport(null);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+      for (final unit in code.toUpperCase().codeUnits) {
+        if (!_current.isConnected) return false;
+        if (unit < 0x41 || unit > 0x5A) continue; // sirf A–Z
+        // HID keycode: A = 0x04 … Z = 0x1D.
+        await _sendRawKeyboardReport(0x04 + (unit - 0x41));
+        await Future<void>.delayed(const Duration(milliseconds: 55));
+        await _sendRawKeyboardReport(null);
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+      }
+      if (useConsole) {
+        if (!_current.isConnected) return false;
+        await _sendRawKeyboardReport(0x28); // Enter
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        await _sendRawKeyboardReport(null);
+      }
+      completed = true;
+      return true;
+    } finally {
+      _isTypingCheat = false;
+      // Raw reports ne dedup ko nahi chhua — phir bhi signature
+      // reset karke maujooda snapshot dobara bhejo, taake service
+      // ki "aakhri bheji haalat" hamesha sach ho.
+      _lastSentSignature = '';
+      _sendCurrentReport();
+      if (!completed) {
+        // Darmiyan me kata to khali report pakki jaye (upar wali
+        // _sendCurrentReport dedup se ruk sakti hai agar snapshot
+        // pehle se khali tha) — koi harf PC par daba na reh jaye.
+        await _sendRawKeyboardReport(null);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Mouse reports (v3)
   // ---------------------------------------------------------------------------
 

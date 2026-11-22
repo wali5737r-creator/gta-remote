@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family: 'Segoe UI', Arial, Helvetica, sans-serif; }
+  body { background:#04070a; display:flex; align-items:center; justify-content:center; height:100vh; }
+  .phone { width:900px; height:520px; border-radius:20px; overflow:hidden; display:flex; flex-direction:column;
+           background: linear-gradient(160deg, #10161d 0%, #0a0f14 55%, #0d1218 100%); border:1px solid #2a3641;
+           box-shadow: 0 0 60px rgba(247,147,30,.12), inset 0 1px 0 rgba(255,255,255,.06); }
+  .header { display:flex; align-items:center; justify-content:space-between; padding:14px 22px 10px 22px; }
+  .title { color:#fff; font-size:25px; font-weight:800; letter-spacing:3px; }
+  .title .star { color:#f7a81e; text-shadow:0 0 12px rgba(247,168,30,.8); }
+  .note { color:#93a7b4; font-size:12.5px; margin-top:2px; }
+  .close { color:#dfe9ef; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:50%; width:34px; height:34px; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .tabs { display:flex; gap:10px; padding:4px 22px 12px 22px; }
+  .tab { flex:1; text-align:center; padding:10px 0 8px 0; border-radius:12px; font-size:15px; font-weight:800; letter-spacing:1.5px; color:#7e93a1; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); }
+  .tab small { display:block; font-size:10px; font-weight:600; letter-spacing:1px; margin-top:2px; opacity:.75; }
+  .tab.sa { color:#ffb03a; background:linear-gradient(180deg, rgba(247,147,30,.20), rgba(247,147,30,.07)); border-color:rgba(247,147,30,.65); box-shadow:0 0 18px rgba(247,147,30,.25), inset 0 1px 0 rgba(255,255,255,.12); }
+  .tab.vc { color:#ff8ad4; }
+  .tab.gta5 { color:#9ccc4f; }
+  .body { padding:2px 18px 12px 18px; }
+  .cat { display:flex; align-items:center; gap:8px; color:#ffb03a; font-size:12px; font-weight:800; letter-spacing:2.5px; margin:9px 2px 7px 2px; }
+  .cat::before { content:''; width:4px; height:14px; border-radius:2px; background:#f7931e; box-shadow:0 0 8px rgba(247,147,30,.7); }
+  .cat::after { content:''; flex:1; height:1px; background:linear-gradient(90deg, rgba(247,147,30,.35), transparent); }
+  .row { display:flex; gap:10px; margin-bottom:9px; }
+  .btn { flex:1; border-radius:12px; padding:9px 12px 8px 12px;
+         background:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.02));
+         border:1px solid rgba(255,255,255,.09); box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 3px 8px rgba(0,0,0,.35); }
+  .code { color:#ffffff; font-size:16.5px; font-weight:800; letter-spacing:1px; }
+  .hint { color:#a9bcc7; font-size:12px; margin-top:2px; }
+  .btn.hot { border-color:rgba(46,230,107,.55); background:linear-gradient(180deg, rgba(46,230,107,.13), rgba(46,230,107,.04)); }
+  .btn.hot .code { color:#2ee66b; }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="header">
+      <div>
+        <div class="title"><span class="star">★</span> CHEATS</div>
+        <div class="note">Tap any cheat — the remote types the code for you</div>
+      </div>
+      <div class="close">✕</div>
+    </div>
+    <div class="tabs">
+      <div class="tab sa">SAN ANDREAS<small>42 CODES</small></div>
+      <div class="tab vc">VICE CITY<small>38 CODES</small></div>
+      <div class="tab gta5">GTA 5<small>34 CODES</small></div>
+    </div>
+    <div class="body">
+      <div class="cat">SURVIVAL &amp; MONEY</div>
+      <div class="row">
+        <div class="btn hot"><div class="code">HESOYAM</div><div class="hint">Full health + armor + $250,000 cash</div></div>
+        <div class="btn"><div class="code">BAGUVIX</div><div class="hint">God mode — health never goes down</div></div>
+        <div class="btn"><div class="code">CVWKXAM</div><div class="hint">Unlimited oxygen under water</div></div>
+      </div>
+      <div class="cat">WEAPONS</div>
+      <div class="row">
+        <div class="btn"><div class="code">KJKSZPJ</div><div class="hint">Weapon set 2 — strong guns</div></div>
+        <div class="btn"><div class="code">UZUMYMW</div><div class="hint">Weapon set 3 — heaviest guns</div></div>
+        <div class="btn"><div class="code">FULLCLIP</div><div class="hint">Infinite ammo, no reloading</div></div>
+      </div>
+      <div class="cat">POLICE</div>
+      <div class="row">
+        <div class="btn"><div class="code">AEZAKMI</div><div class="hint">Police never chase you</div></div>
+        <div class="btn"><div class="code">ASNAEB</div><div class="hint">Remove all wanted stars</div></div>
+        <div class="btn"><div class="code">BRINGITON</div><div class="hint">6 stars — full police attack!</div></div>
+      </div>
+      <div class="cat">VEHICLES &amp; FLYING</div>
+      <div class="row">
+        <div class="btn"><div class="code">AIWPRTON</div><div class="hint">Tank (Rhino)</div></div>
+        <div class="btn"><div class="code">ROCKETMAN</div><div class="hint">Jetpack — fly anywhere</div></div>
+        <div class="btn"><div class="code">URKQSRK</div><div class="hint">Stunt plane</div></div>
+        <div class="btn"><div class="code">JUMPJET</div><div class="hint">Fighter jet (Hydra)</div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

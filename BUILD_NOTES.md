@@ -484,3 +484,64 @@ Stick feel + PWM proportionality from the stick, 90 ms arrow
 tap feel, AIM+ATTACK simultaneous hold in SA, wheel-tick weapon
 cycling, CROUCH toggle, English wording in the live pairing
 flow. See IMPROVEMENTS_V4 "Must verify".
+
+## v5 — CHEATS screen, MISSIONS GUIDE, HORN, MISSION + TAB buttons (2026-11-22)
+
+Version 5.0.0+2. Approved scope + premium CHEATS design
+(`mockup/v5-cheats-premium.html/png`). Full review:
+`IMPROVEMENTS_V5.md`.
+
+### What was added
+
+- **Cheat typer** (`HidService.typeCheatCode`, Dart only): raw
+  `sendReport` calls bypass the snapshot dedup; per letter
+  55 ms down / 40 ms gap. SA + VC type directly in the game;
+  GTA V goes through the ~ console (grave 0x35, 300 ms wait,
+  letters, Enter). `releaseAllKeys()` first; per-letter
+  connection check aborts a dropped type; `finally` clears the
+  `isTypingCheat` flag, resets the dedup signature and re-sends
+  the current snapshot (plus a raw empty report on abort).
+- **CHEATS screen** (`lib/screens/cheats_screen.dart`, data in
+  `lib/data/cheats.dart`): premium mockup design — per-game
+  accent glow, tabs SAN ANDREAS (orange) / VICE CITY (pink) /
+  GTA 5 (green) with real code counts (36 / 32 / 27), category
+  headers, CODE + hint cards, status line (Typing… / Sent /
+  Not connected / Connection lost), VC + GTA 5 footer notes.
+- **GUIDE screen** (`lib/screens/guide_screen.dart`): how
+  missions work (radar letter → marker), SA / VC / GTA 5
+  sections, save points, airports, vehicle missions via the
+  MISSION button.
+- **New keys**: `GameKey.h` (0x0B), `e` (0x08), `tab` (0x2B),
+  `capsLock` (0x39), appended to `hidKeyOrder` after `c` —
+  pre-existing key sets emit byte-identical reports.
+  `GameProfile.hornKey` (V: E, SA: H) and `submissionKey`
+  (V: E, SA: CapsLock).
+- **HORN**: STEERING = wheel hub hold (separate pointer in
+  `SteeringWheel`, non-rotating HORN label, dispose releases);
+  TILT = round button above BRAKE; CONTROLLER = round button
+  under the action row; ARROWS = round button above the pair.
+  All feed source `'horn'`.
+- **MISSION pill** (driving, steering-control side, top 82):
+  `_momentaryKeyPress('mission', submissionKey)` — the v3
+  150 ms + lockout clean press.
+- **TAB pill** (on foot): appended to the weapon-switch row;
+  `_momentaryKeyPress('tab', GameKey.tab)`.
+- **TopBar Row 2**: CHEATS + GUIDE pills on the action-cluster
+  side (Row 1 is full at 640 dp while driving — see
+  IMPROVEMENTS_V5); opening either screen mirrors
+  `_openSettings` (clear-all + stop tilt first). Settings help
+  teaches all five additions.
+
+### HID / re-pair
+
+**No re-pair needed.** `git diff HEAD -- android/` is empty;
+the descriptor + SDP + QOS block md5 is identical to v4
+(`ba778a379ab87a7f50ec5d2810479153`). All v5 work is Dart over
+the existing `sendReport` channel.
+
+### Not device-verified (owner's session decides)
+
+Cheat typing in all three games (incl. the GTA 5 console
+sequence and the Windows input-language caveat for Y/Z),
+horn feel in the four modes, MISSION starting a taxi mission
+in SA, TAB answering the property prompt.
