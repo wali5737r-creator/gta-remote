@@ -545,3 +545,8 @@ Cheat typing in all three games (incl. the GTA 5 console
 sequence and the Windows input-language caveat for Y/Z),
 horn feel in the four modes, MISSION starting a taxi mission
 in SA, TAB answering the property prompt.
+
+## v5.0.1 rename (2026-11-22)
+- App label renamed to "Gaming Remote" per Muhammad's words ("remote ki jga gaming Remote likho").
+- Changed ONLY user-visible label/title strings: AndroidManifest android:label, MaterialApp title, connect/settings screens, pubspec description; version 5.0.1+3.
+- Deliberately UNCHANGED: HidKeyboardManager SDP_SETTINGS name/description ("AB GTA") — that is the cached Bluetooth HID record; changing it risks a Windows re-pair, so the laptop-side Bluetooth name stays "AB GTA".

@@ -9,7 +9,7 @@ Future<void> main() async {
   runApp(const GtaRemoteApp());
 }
 
-/// AB GTA — phone Bluetooth steering wheel ban jata hai.
+/// Gaming Remote — phone Bluetooth steering wheel ban jata hai.
 ///
 /// Phone khud aik Bluetooth keyboard ban kar laptop se jurta hai —
 /// na internet, na laptop par koi program. Driving mode me touch
@@ -22,7 +22,7 @@ class GtaRemoteApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AB GTA',
+      title: 'Gaming Remote',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

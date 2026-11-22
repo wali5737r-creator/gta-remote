@@ -171,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'keyboard apps and try again — only one app can be '
                       'a Bluetooth keyboard at a time.'),
                   _HelpLine('If the connection keeps dropping: phone '
-                      'Settings → Apps → AB GTA → Battery → set it to '
+                      'Settings → Apps → Gaming Remote → Battery → set it to '
                       'Unrestricted.'),
                   _HelpLine('While driving, the switch at the top '
                       'changes how you steer: STEERING = touch wheel, '

@@ -162,7 +162,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       builder: (dialogContext) => AlertDialog(
         title: const Text('Bluetooth permission'),
         content: const Text(
-          'AB GTA needs Bluetooth permission so it can connect to '
+          'Gaming Remote needs Bluetooth permission so it can connect to '
           'your laptop.\n\n'
           'No internet is used, and no data goes anywhere.',
         ),
@@ -365,7 +365,7 @@ class _ConnectScreenState extends State<ConnectScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AB GTA',
+                  'Gaming Remote',
                   style: TextStyle(
                     fontSize: 27,
                     fontWeight: FontWeight.w900,
@@ -652,7 +652,7 @@ class _ConnectScreenState extends State<ConnectScreen>
             ),
             _HelpPoint(
               'Connection keeps dropping? Phone Settings → Apps → '
-              'AB GTA → Battery → set it to Unrestricted.',
+              'Gaming Remote → Battery → set it to Unrestricted.',
             ),
           ],
         ),
