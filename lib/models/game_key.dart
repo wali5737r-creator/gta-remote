@@ -36,6 +36,17 @@ enum GameKey {
   arrowUp(0x52, 'ArrowUp'),
   arrowDown(0x51, 'ArrowDown'),
 
+  // v5.2 (FLY fix): numpad ki pitch keys. GTA SA (2005) jahaz ko
+  // arrow keys se NAHI ghumata — pitch us ke "Special Control"
+  // mehwar par hai: Numpad 2 = naak UPAR, Numpad 8 = naak NEECHE.
+  // GTA V: Numpad 5 = naak UPAR, Numpad 8 = naak NEECHE. Is liye
+  // FLY handle arrows ke SAATH ye keys bhi bhejta hai (tafseel
+  // controller ki _feedFlyStick trace mai). Keycodes USB HID
+  // standard ke hain: KP2 = 0x5A, KP5 = 0x5D, KP8 = 0x60.
+  numpad2(0x5A, 'Numpad 2'),
+  numpad5(0x5D, 'Numpad 5'),
+  numpad8(0x60, 'Numpad 8'),
+
   space(0x2C, 'Space'),
   enter(0x28, 'Enter'),
   escape(0x29, 'Esc'),
@@ -73,9 +84,15 @@ const List<GameKey> hidKeyOrder = [
   GameKey.space,
   GameKey.enter,
   GameKey.escape,
-  // v6: FLY pitch keys list ke aakhir mai — purani keys ki
+  // v6: FLY pitch keys (arrows) list ke aakhir mai — purani keys ki
   // relative order bilkul nahi badli, is liye purane key-set
   // snapshots ke report bytes pehle jaise hi rehte hain.
   GameKey.arrowUp,
   GameKey.arrowDown,
+  // v5.2: numpad pitch keys bhi bilkul aakhir mai (arrows ke baad) —
+  // wahi byte-identity wala usool: purane tamam key sets ke report
+  // bytes na-badla rehte hain.
+  GameKey.numpad2,
+  GameKey.numpad5,
+  GameKey.numpad8,
 ];

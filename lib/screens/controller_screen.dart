@@ -618,17 +618,34 @@ class _ControllerScreenState extends State<ControllerScreen>
   /// TRACE (IMPROVEMENTS_V6.md me bhi bilkul yahi hai):
   /// - handle LEFT   → profile.steerLeftKey (A)
   /// - handle RIGHT  → profile.steerRightKey (D)
-  /// - handle UPAR   → GameKey.arrowDown — NOSE UP. Ye ulta
-  ///   lagta hai magar SAHI hai: GTA SA me ArrowDown jahaz ki
-  ///   naak UPAR uthata hai (flight-stick convention). Ise
-  ///   "seedha" karne ki koshish NA karna.
-  /// - handle NEECHE → GameKey.arrowUp — NOSE DOWN (usi
-  ///   convention ka dusra rukh).
+  /// - handle UPAR   → {arrowDown, numpad2, numpad5} — NOSE UP.
+  /// - handle NEECHE → {arrowUp, numpad8} — NOSE DOWN.
+  ///
+  /// Pitch ke set itne bare KYUN hain (v5.2 fix — is hisse ko
+  /// "saaf" karke keys kam NA karna):
+  /// - GTA SA (2005) jahaz ko arrow keys se bilkul NAHI
+  ///   ghumata. Pitch wahan "Special Control" mehwar par hai:
+  ///   **Numpad 2 = naak UPAR, Numpad 8 = naak NEECHE** (SA ka
+  ///   mashhoor laptop masla; SA DirectInput scancodes parhta
+  ///   hai, is liye NumLock ki haalat se koi farq nahi parta).
+  ///   Sirf arrows bhejne par jahaz sirf dorta raha, ura nahi —
+  ///   yahi v5.1 ka owner-device bug tha.
+  /// - GTA V: **Numpad 8 = naak NEECHE, Numpad 5 = naak UPAR**.
+  /// - Arrows phir bhi set mai rakhe hain: VC aur dusri games
+  ///   un se pitch karti hain, aur in games mai numpad keys ka
+  ///   koi ulta asar nahi.
+  /// - Naak UPAR wale set mai numpad2 (SA) aur numpad5 (V)
+  ///   dono hain taake handle har game mai kaam kare.
+  ///
+  /// Flight-stick convention bhi yaad rahe: GTA SA me
+  /// ArrowDown/Numpad 2 jahaz ki naak UPAR uthata hai — handle
+  /// UPAR = naak UPAR wala ulta lagne wala mapping jaan-boojh
+  /// kar hai. Ise "seedha" karne ki koshish NA karna.
   ///
   /// Dono mehwar azad hain: diagonal (mor + climb/descend aik
-  /// saath) mumkin hai — key-set architecture dono keys aik hi
+  /// saath) mumkin hai — key-set architecture tamam keys aik hi
   /// report me bhej deta hai. Stick chhute hi widget (0, 0)
-  /// bhejta hai aur chaaro keys chhut jati hain. Koi PWM nahi —
+  /// bhejta hai aur tamam keys chhut jati hain. Koi PWM nahi —
   /// keys seedhi hold hoti hain jab tak mehwar dead zone se
   /// bahar hai. Settings ki sensitivity yahan nahi lagti (woh
   /// wheel/stick ki cheez hai).
@@ -656,8 +673,17 @@ class _ControllerScreenState extends State<ControllerScreen>
     final keys = <GameKey>{};
     if (xd < 0) keys.add(profile.steerLeftKey);
     if (xd > 0) keys.add(profile.steerRightKey);
-    if (yd < 0) keys.add(GameKey.arrowDown); // NOSE UP (inversion)
-    if (yd > 0) keys.add(GameKey.arrowUp); // NOSE DOWN
+    if (yd < 0) {
+      // NOSE UP: arrowDown (VC waghera) + numpad2 (SA) + numpad5 (V)
+      keys.add(GameKey.arrowDown);
+      keys.add(GameKey.numpad2);
+      keys.add(GameKey.numpad5);
+    }
+    if (yd > 0) {
+      // NOSE DOWN: arrowUp (VC waghera) + numpad8 (SA aur V dono)
+      keys.add(GameKey.arrowUp);
+      keys.add(GameKey.numpad8);
+    }
     _setSourceKeys('flystick', keys);
   }
 

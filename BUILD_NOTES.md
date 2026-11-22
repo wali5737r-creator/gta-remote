@@ -645,3 +645,45 @@ later, bump to +4.
 Cheat typing after the reliability fix (all three games), FLY handle feel
 in a plane/helicopter (incl. the pitch inversion in practice), DOWN pedal
 behaviour in the air, five-segment pill readability on the real phone.
+
+## v5.2 (2026-11-22) — FLY pitch fix: numpad keys
+
+Owner-device bug in v5.1: in FLY mode the plane taxis (RACE/W works)
+but the nose never lifts. Glint re-read `fly_stick.dart` and
+`_feedFlyStick` directly — stick and feed were wired exactly as
+designed (handle up → `GameKey.arrowDown`). The fault is the key
+choice: **GTA SA (2005) does not pitch aircraft with the arrow keys
+by default.** Pitch is the "Special Control" axis on the numpad —
+**Numpad 2 = nose up, Numpad 8 = nose down** (the well-known SA
+laptop problem; SA reads DirectInput scancodes, so NumLock state is
+irrelevant). GTA V likewise: **Numpad 8 = nose down, Numpad 5 =
+nose up**.
+
+### Change (Dart only)
+
+- `game_key.dart`: added `numpad2` (0x5A), `numpad5` (0x5D — HID
+  keypad 5; 0x5C would be keypad 4), `numpad8` (0x60), appended at
+  the END of `hidKeyOrder` after the arrow keys — every pre-existing
+  key set stays byte-identical.
+- `_feedFlyStick` only: handle UP (NOSE UP) now sends
+  {arrowDown, numpad2, numpad5}; handle DOWN (NOSE DOWN) sends
+  {arrowUp, numpad8}. Arrows kept for VC/other games. Left/right
+  (A/D) unchanged. The comment above the function explains why the
+  sets carry both arrow and numpad keys — do not "clean them up".
+- Settings FLY help line unchanged (it never named the arrow keys).
+- Full write-up: `IMPROVEMENTS_V6.md` §11.
+
+### HID / re-pair
+
+**No re-pair needed.** ZERO changes under `android/`; descriptor +
+SDP + QOS block md5 still `ba778a379ab87a7f50ec5d2810479153`.
+
+### Version
+
+`5.2.0+4` — versionCode 4, monotonic again (v5.1's +3 had reused
+5.0.1's code 3).
+
+### Not device-verified (owner's session decides)
+
+Pitch response in SA (plane + helicopter) and GTA V with the numpad
+keys; VC unaffected-ness (numpad usages expected inert there).

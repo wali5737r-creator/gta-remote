@@ -337,3 +337,59 @@ title, connect/settings strings, pubspec 5.0.1+3). Re-verified for v5.1:
   whether the pitch inversion feels right in practice); DOWN pedal in
   the air; five-segment pill readability on the real phone at its real
   width.
+
+---
+
+## 11. v5.2 addendum — FLY pitch keys (numpad), owner-device bug fix
+
+**Symptom (owner device, v5.1):** in FLY mode the plane taxis — RACE
+(W) works — but the nose never lifts, at any speed.
+
+**Root cause:** the key choice, not the wiring. Glint re-read
+`lib/widgets/fly_stick.dart` and `_feedFlyStick` directly: the stick
+and feed were wired exactly as designed in §4.1 (handle up →
+`GameKey.arrowDown`). The fault is that **GTA SA (2005) does not
+pitch aircraft with the arrow keys by default.** Pitch is SA's
+"Special Control" axis, bound to the **numpad**: **Numpad 8 = nose
+down, Numpad 2 = nose up** — the well-known SA laptop problem (no
+numpad, no pitch). SA reads DirectInput scancodes, so the host's
+NumLock state is irrelevant to whether these HID usages register.
+GTA V likewise pitches on the numpad: **Numpad 8 = nose down,
+Numpad 5 = nose up**. The arrows were simply never read by SA's
+flight model, so the report bytes were correct and the plane still
+could not climb.
+
+**Fix (Dart only, zero `android/` changes):** the FLY pitch sets now
+send the numpad keys **alongside** the arrows, so the handle works
+across all three games:
+
+| Handle position | Keys sent | Why |
+|---|---|---|
+| up (NOSE UP) | `arrowDown` + `numpad2` + `numpad5` | SA pitches up on numpad2; GTA V on numpad5; arrows kept for VC/other games |
+| down (NOSE DOWN) | `arrowUp` + `numpad8` | SA and GTA V both pitch down on numpad8; arrows kept as above |
+| left / right | profile steer keys (A/D) | unchanged |
+
+- New keys in `game_key.dart`: `numpad2` (0x5A), `numpad5` (**0x5D**),
+  `numpad8` (0x60) — USB HID usage page 0x07 keypad codes. Note:
+  0x5C is Keypad 4; Keypad 5 is 0x5D.
+- The flight-stick inversion of §4.1 is unchanged (handle up = nose
+  up); only the key set grew. The mapping comment above
+  `_feedFlyStick` now explains WHY the sets contain both arrow and
+  numpad keys, so a future reader doesn't "clean them up".
+- **Byte-identity argument:** the three numpad keys are appended at
+  the END of `hidKeyOrder`, after the v5.1 arrow keys. The snapshot
+  sender iterates that list, so every pre-existing key set (all other
+  modes, and FLY left/right-only) produces byte-identical reports to
+  v5.1. Only a FLY pitch hold emits new bytes, and its worst case —
+  diagonal + pitch (4 keys) + RACE (5) — stays under the 6-key cap.
+- Descriptor proof for v5.2: `sed -n '59,142p' HidKeyboardManager.kt
+  | md5sum` → `ba778a379ab87a7f50ec5d2810479153`, identical to
+  v4/v5/v5.1; `git diff -- android/` empty. **No re-pair needed.**
+- Files changed in v5.2: `lib/models/game_key.dart`,
+  `lib/screens/controller_screen.dart` (`_feedFlyStick` + its comment
+  only), `pubspec.yaml` (5.2.0+4 — versionCode 4, monotonic again),
+  `BUILD_NOTES.md`, `IMPROVEMENTS_V6.md` (this addendum).
+- Not verified here (owner device decides): actual pitch response in
+  SA (plane + helicopter) and GTA V after the fix; whether the extra
+  numpad usages disturb VC (expected inert — VC reads its own
+  bindings — but only the device session proves it).
