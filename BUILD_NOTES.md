@@ -764,26 +764,42 @@ readability on the real phone; whether Cricket 07's variations
 match the A/D/W/Shift keys for his bowlers (the game shows the
 names — the buttons deliberately don't guess them).
 
-## v5.4 — ATTACK auto-aim (aim + fire, aik button)
+## v5.4 — Two-button fight: pad aims, ATTACK fires
 
-- **Darkhwast (2026-11-24):** AIM phir ATTACK — do alag buttons me
-  waqt lagta hai. ATTACK ke andar hi nishana lagane wala function
-  rakh do. Koi naya button nahi, layout waisa hi.
-- **Tabdeeli (Dart-only, `controller_screen.dart`):**
-  ATTACK dabate hi LEFT (fire) + RIGHT (aim) dono mouse bits lagte
-  hain; sub-label `Mouse` → `Aim + Fire`. AIM button rehta hai
-  (baghair fire ke nishana). Malik-gin helper `_setAimHeldBy`
-  + field `_aimHolders`: right bit tabhi chhutta hai jab 'aim' aur
-  'attack' dono malik chhor dein. `_clearAllKeys()` me
-  `_aimHolders.clear()` (stale-holder band).
+- **Darkhwast (2026-11-24/25, teen paigham):** (1) AIM phir
+  ATTACK — do alag buttons me waqt lagta hai; (2) fight me
+  nishana ATTACK par ho, baqi jagah nahi — if-else + band
+  karne ka button; (3) **aakhri design: do button se kaam ho**
+  — pad se direction set karna phir ATTACK dabana mushkil hai;
+  **nishana touch pad par hi set karo**.
+- **Tabdeeli (Dart-only):**
+  - `camera_pad.dart`: naye optional callbacks `onTouchStart` /
+    `onTouchEnd` + `label` param. Controller: paidal mode me pad
+    chhoote hi right (aim) bit — drag = simt + nishana, ungli
+    uthte hi nishana chhutta hai; driving/FLY me sirf camera.
+    Label auto-aim ON + paidal ho to `AIM + CAMERA`.
+  - `controller_screen.dart`: ATTACK dabate hi LEFT (fire) +
+    RIGHT (aim) — sub-label `Aim + Fire` (OFF ho to `Fire only`).
+    AIM button rehta hai (baghair fire ke nishana).
+  - `top_bar.dart`: nav row me AUTO-AIM ON/OFF pill (sirf ON
+    FOOT) — band karne ka button; cluster/pad ki jagah nahi
+    khata. `settings_service.dart`: `autoAim` (default ON,
+    persisted) — **no-notify setter** (notify karte to daba hua
+    ATTACK ruk jata; wajah code me likhi hai).
+  - Malik-gin: `_aimHolders` {'aim','attack','pad'}; right bit
+    tabhi chhutta hai jab teeno chhor dein. `_padTouched` flag
+    toggle-sync ke liye; `_clearAllKeys()` dono saaf karta hai.
 - **QA:** `IMPROVEMENTS_V8.md` — teen nazariye (user/tester/
-  expert), traces T1–T6, 0 critical/major findings.
+  expert), traces T1–T10, 0 critical/major findings. Known:
+  bina bandooq ke pad chhoone se SA melee target-lock ho sakta
+  hai — toggle OFF is ka hal hai.
 - **HID / re-pair:** ZERO changes under `android/`; descriptor +
   SDP + QOS md5 `ba778a379ab87a7f50ec5d2810479153` unchanged →
   **no re-pair, v5.3 ke upar install karo.**
 
 ### Not device-verified (owner's session decides)
 
-ATTACK se aim+fire aik saath; AIM akela sirf nishana; AIM dabaye
-rakh kar ATTACK chhorne par aim na toote; mode switch ke baad
-koi atka hua aim nahi.
+Pad chhoo → aim + drag se aim ghume; ungli uthao → aim chhute;
+ATTACK se aim+fire; AUTO-AIM OFF → ATTACK sirf fire, pad sirf
+camera; AIM akela sirf nishana; mode switch ke baad koi atka
+hua aim nahi.

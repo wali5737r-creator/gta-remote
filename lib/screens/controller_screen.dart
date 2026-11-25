@@ -74,10 +74,14 @@ import 'settings_screen.dart';
 ///   hi taraf chhote gol (76 dp) hain; CAMERA pad is mode me
 ///   nahi (Cricket 07 sirf keyboard par hai). HID descriptor
 ///   phir bhi bilkul nahi badla — saara kaam Dart me hai.
-/// - v5.4: ATTACK ab khud nishana lagata hai (aim + fire aik
-///   button me) — dabate hi right (aim) bit bhi lag jata hai;
-///   AIM button alag se bhi rehta hai (baghair fire ke nishana).
-///   HID descriptor phir bhi bilkul nahi badla — saara kaam Dart
+/// - v5.4: Larai ab DO button se — CAMERA pad chhoote hi
+///   nishana bhi lag jata hai (drag = simt + nishana, ungli
+///   uthte hi nishana chhutta hai) aur ATTACK dabate hi fire +
+///   aim; AIM button alag se bhi rehta hai (baghair fire ke
+///   nishana). Top bar me AUTO-AIM ON/OFF pill bhi hai (sirf
+///   ON FOOT me) — band karne par ATTACK wapas sirf fire aur
+///   pad wapas sirf camera hai. Pasand yaad rehti hai. HID
+///   descriptor phir bhi bilkul nahi badla — saara kaam Dart
 ///   me hai.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
@@ -107,6 +111,18 @@ class _ControllerScreenState extends State<ControllerScreen>
   /// hain. Bit tabhi chhutta hai jab dono chhor dein; warna
   /// AIM dabaye rakh kar ATTACK chhorne par nishana toot jata.
   final Set<String> _aimHolders = {};
+
+  /// v5.4: ATTACK ke saath auto-aim chalu hai ya nahi (top bar
+  /// ki AUTO-AIM pill se badalta hai; yaad rehta hai).
+  bool _autoAimOn = true;
+
+  /// ATTACK is waqt daba hua hai ya nahi — toggle dabane par
+  /// aim foran lagane/chhorne ke liye.
+  bool _attackHeld = false;
+
+  /// CAMERA pad is waqt chhua hua hai ya nahi — pad-aim ka
+  /// malik toggle ke waqt sahi sync rahe, is liye zaroori hai.
+  bool _padTouched = false;
   bool _fTapInProgress = false;
 
   /// Steering ka tareeqa (sirf driving me): touch wheel
@@ -285,6 +301,7 @@ class _ControllerScreenState extends State<ControllerScreen>
     if (_connected) WakelockPlus.enable();
     _settings.addListener(_onSettingsChanged);
     _driveMode = _settings.driveMode;
+    _autoAimOn = _settings.autoAim;
     // Pehle frame ke baad maujooda mode ka banner aik dafa dikhao —
     // user ko foran tasdeeq mil jati hai ke woh controller par hai
     // aur kis mode me hai (connect kamyab hone ka sab se wazeh ishara).
@@ -393,7 +410,10 @@ class _ControllerScreenState extends State<ControllerScreen>
     _resetSteerEngine(syncSource: false);
     // v5.4: aim ke malik bhi saaf — warna purana 'attack'
     // malik baad me AIM chhorne par right bit galat jor deta.
+    // Pad chhua hua ho to us ka nishan bhi saaf (mode switch
+    // ke waqt ungli ka _handleUp kabhi nahi aata).
     _aimHolders.clear();
+    _padTouched = false;
     _hid.releaseAllKeys();
   }
 
@@ -1338,6 +1358,8 @@ class _ControllerScreenState extends State<ControllerScreen>
                           flipControls: flip,
                           onCheatsTap: _openCheats,
                           onGuideTap: _openGuide,
+                          autoAimOn: _autoAimOn,
+                          onAutoAimTap: _toggleAutoAim,
                         ),
                       ),
                       _buildModeContent(wheelSize, clusterScale),
@@ -2081,6 +2103,23 @@ class _ControllerScreenState extends State<ControllerScreen>
       bottom: 72,
       child: CameraPad(
         onMove: (dx, dy) => _hid.moveMouse(dx, dy),
+        // v5.4: paidal mode me pad chhoote hi nishana bhi lag jata
+        // hai (right bit) — drag = simt + nishana, ungli uthte hi
+        // nishana chhut-ta hai. Driving me sirf camera (gaari me
+        // aim ka koi kaam nahi). Label bata deta hai ke pad ab
+        // aim bhi karta hai.
+        label: !_driving && _autoAimOn ? 'AIM + CAMERA' : 'CAMERA',
+        onTouchStart: () {
+          _padTouched = true;
+          if (!_driving && _autoAimOn) _setAimHeldBy('pad', true);
+        },
+        onTouchEnd: () {
+          _padTouched = false;
+          // Hamesha chhoro — auto-aim beech me OFF hua ho to bhi
+          // 'pad' malik atakna nahi chahiye (remove no-op hai
+          // agar malik kabhi bana hi na ho).
+          _setAimHeldBy('pad', false);
+        },
       ),
     );
   }
@@ -2313,6 +2352,8 @@ class _ControllerScreenState extends State<ControllerScreen>
   /// aik button me: dabate hi mouse ka LEFT (fire) aur RIGHT
   /// (aim) dono bits lag jate hain, chhorne par dono chhut-te
   /// hain — AIM button alag se daba ho to aim tabhi rehta hai.
+  /// Auto-aim top bar ki AUTO-AIM pill se band ho sakta hai —
+  /// tab ATTACK sirf fire karta hai (sub-label badal jata hai).
   /// Mouse button ki haalat HidService rakhta hai aur har safety
   /// path (mode switch, disconnect, pause, dispose) par zero
   /// hoti hai — click atak nahi sakta.
@@ -2320,17 +2361,32 @@ class _ControllerScreenState extends State<ControllerScreen>
     return RoundButton(
       diameter: 80,
       label: 'ATTACK',
-      subLabel: 'Aim + Fire',
+      subLabel: _autoAimOn ? 'Aim + Fire' : 'Fire only',
       gradientTop: const Color(0xFFDC2626),
       gradientBottom: const Color(0xFF7F1D1D),
       borderColor: const Color(0xFFFCA5A5),
       onHeldChanged: (held) {
+        _attackHeld = held;
         _hid.setMouseButton(HidService.mouseButtonLeft, held);
-        // v5.4: ATTACK khud hi nishana lagata hai — right bit
-        // malik-gin ke saath lagao/chhoro.
-        _setAimHeldBy('attack', held);
+        // v5.4: auto-aim ON ho to ATTACK khud hi nishana lagata
+        // hai — right bit malik-gin ke saath lagao/chhoro.
+        if (_autoAimOn) _setAimHeldBy('attack', held);
       },
     );
+  }
+
+  /// AUTO-AIM toggle (v5.4) — top bar ki pill se. ON = ATTACK
+  /// aim + fire aur pad chhoote hi nishana; OFF = ATTACK sirf
+  /// fire aur pad sirf camera. ATTACK ya pad daba hua ho to aim
+  /// foran lagta/chhutta hai — dobara dabane ki zaroorat nahi.
+  /// Pasand save ho jati hai (no-notify setter — notify karte
+  /// to daba hua ATTACK ruk jata).
+  void _toggleAutoAim() {
+    final next = !_autoAimOn;
+    setState(() => _autoAimOn = next);
+    _settings.setAutoAim(next);
+    if (_attackHeld) _setAimHeldBy('attack', next);
+    if (_padTouched && !_driving) _setAimHeldBy('pad', next);
   }
 
   /// AIM ke malik — 'aim' button aur 'attack' button dono

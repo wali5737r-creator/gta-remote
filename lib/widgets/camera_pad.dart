@@ -24,6 +24,9 @@ class CameraPad extends StatefulWidget {
     super.key,
     required this.onMove,
     this.sensitivity = 2.2,
+    this.label = 'CAMERA',
+    this.onTouchStart,
+    this.onTouchEnd,
   });
 
   /// Mouse ki harkat bhejo (dx, dy) — har call ±127 ke andar hai.
@@ -32,6 +35,15 @@ class CameraPad extends StatefulWidget {
   /// Ungli ki harkat ka multiplier. 2.2 par halki si drag par
   /// camera aaram se ghum jata hai; 1.0 bohat sust lagta tha.
   final double sensitivity;
+
+  /// Pad par likha naam — paidal mode me auto-aim chalu ho to
+  /// 'AIM + CAMERA' (v5.4), warna 'CAMERA'.
+  final String label;
+
+  /// Ungli pad ko chhoo le (aim pakarne ke liye, v5.4) aur
+  /// ungli uth jaye (aim chhorne ke liye).
+  final VoidCallback? onTouchStart;
+  final VoidCallback? onTouchEnd;
 
   @override
   State<CameraPad> createState() => _CameraPadState();
@@ -80,6 +92,7 @@ class _CameraPadState extends State<CameraPad> {
     _pointer = event.pointer;
     _lastPosition = event.localPosition;
     setState(() => _dragging = true);
+    widget.onTouchStart?.call();
     _flushTimer?.cancel();
     _flushTimer = Timer.periodic(_flushInterval, (_) => _flush());
   }
@@ -101,6 +114,7 @@ class _CameraPadState extends State<CameraPad> {
     _flush(); // bachi hui harkat bhi bhej do
     _flushTimer?.cancel();
     _flushTimer = null;
+    widget.onTouchEnd?.call();
     if (mounted) setState(() => _dragging = false);
   }
 
@@ -138,7 +152,7 @@ class _CameraPadState extends State<CameraPad> {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'CAMERA',
+                  widget.label,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

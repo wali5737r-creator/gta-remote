@@ -75,6 +75,7 @@ class SettingsService extends ChangeNotifier {
   static const _keyTiltSteering = 'tilt_steering';
   static const _keyDriveMode = 'drive_mode';
   static const _keyCricketCameraFlip = 'cricket_camera_flip';
+  static const _keyAutoAim = 'auto_aim';
   static const _keyDeviceAddress = 'last_device_address';
   static const _keyDeviceName = 'last_device_name';
 
@@ -113,6 +114,14 @@ class SettingsService extends ChangeNotifier {
   bool _cricketCameraFlip = false;
   bool get cricketCameraFlip => _cricketCameraFlip;
 
+  /// ATTACK ke saath auto-aim (v5.4): true ho to ATTACK dabate hi
+  /// right (aim) bit bhi lagta hai — larai me aik button kaafi hai.
+  /// False ho to ATTACK sirf fire hai (pehle jaisa). Default ON —
+  /// Muhammad ne yehi feature manga tha; band karne ke liye top
+  /// bar me AUTO-AIM pill hai.
+  bool _autoAim = true;
+  bool get autoAim => _autoAim;
+
   /// Sirf TILT wali purani haalat — v2/v3 ki pasand (tilt_steering
   /// bool) se migration aur tilt wale checks ke liye.
   bool get tiltSteering => _driveMode == DriveMode.tilt;
@@ -146,6 +155,7 @@ class SettingsService extends ChangeNotifier {
     _lastDeviceAddress = prefs.getString(_keyDeviceAddress);
     _lastDeviceName = prefs.getString(_keyDeviceName);
     _cricketCameraFlip = prefs.getBool(_keyCricketCameraFlip) ?? false;
+    _autoAim = prefs.getBool(_keyAutoAim) ?? true;
     _loaded = true;
     notifyListeners();
   }
@@ -200,6 +210,17 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyCricketCameraFlip, value);
+  }
+
+  /// Auto-aim save karo. Notify NAHI karta — ye toggle larai ke
+  /// beech me bhi dab sakta hai, aur notify karte hi controller
+  /// ka _onSettingsChanged saari keys (daba hua ATTACK bhi)
+  /// chhor deta. Screen toggle handler me apni setState se
+  /// dobara banti hai, is liye notify ki zaroorat nahi.
+  Future<void> setAutoAim(bool value) async {
+    _autoAim = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyAutoAim, value);
   }
 
   Future<void> setLastDevice(String address, String name) async {

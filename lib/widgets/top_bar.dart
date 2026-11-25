@@ -20,6 +20,8 @@ class ControllerTopBar extends StatelessWidget {
     this.flipControls = false,
     this.onCheatsTap,
     this.onGuideTap,
+    this.autoAimOn,
+    this.onAutoAimTap,
   });
 
   final HidState hidState;
@@ -47,9 +49,15 @@ class ControllerTopBar extends StatelessWidget {
   final VoidCallback? onCheatsTap;
   final VoidCallback? onGuideTap;
 
+  /// AUTO-AIM toggle (v5.4) — sirf ON FOOT mode me nazar aata
+  /// hai. Null ho to pill nahi banta.
+  final bool? autoAimOn;
+  final VoidCallback? onAutoAimTap;
+
   @override
   Widget build(BuildContext context) {
-    final showNavRow = onCheatsTap != null || onGuideTap != null;
+    final showNavRow =
+        onCheatsTap != null || onGuideTap != null || onAutoAimTap != null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -100,6 +108,23 @@ class ControllerTopBar extends StatelessWidget {
                   label: 'GUIDE',
                   onTap: onGuideTap!,
                 ),
+              // AUTO-AIM toggle (v5.4) — sirf ON FOOT me: larai
+              // se pehle ON, baqi kaam ke liye OFF. Cluster/pad
+              // ki jagah nahi khata — dusri satar me jagah thi.
+              if (onAutoAimTap != null && !driving) ...[
+                if (onCheatsTap != null || onGuideTap != null)
+                  const SizedBox(width: 8),
+                _NavPill(
+                  icon: Icons.gps_fixed,
+                  iconColor: (autoAimOn ?? true)
+                      ? const Color(0xFF4ADE80)
+                      : const Color(0xFF94A3B8),
+                  label: (autoAimOn ?? true)
+                      ? 'AUTO-AIM ON'
+                      : 'AUTO-AIM OFF',
+                  onTap: onAutoAimTap!,
+                ),
+              ],
             ],
           ),
         ],
