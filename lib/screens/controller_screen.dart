@@ -74,6 +74,11 @@ import 'settings_screen.dart';
 ///   hi taraf chhote gol (76 dp) hain; CAMERA pad is mode me
 ///   nahi (Cricket 07 sirf keyboard par hai). HID descriptor
 ///   phir bhi bilkul nahi badla — saara kaam Dart me hai.
+/// - v5.4: ATTACK ab khud nishana lagata hai (aim + fire aik
+///   button me) — dabate hi right (aim) bit bhi lag jata hai;
+///   AIM button alag se bhi rehta hai (baghair fire ke nishana).
+///   HID descriptor phir bhi bilkul nahi badla — saara kaam Dart
+///   me hai.
 class ControllerScreen extends StatefulWidget {
   const ControllerScreen({super.key});
 
@@ -96,6 +101,12 @@ class _ControllerScreenState extends State<ControllerScreen>
   final Map<String, Set<GameKey>> _keySources = {};
 
   bool _runOn = false;
+
+  /// v5.4: AIM kis kis ne pakda hua hai — 'aim' button aur
+  /// 'attack' button dono right (aim) bit ke malik ban sakte
+  /// hain. Bit tabhi chhutta hai jab dono chhor dein; warna
+  /// AIM dabaye rakh kar ATTACK chhorne par nishana toot jata.
+  final Set<String> _aimHolders = {};
   bool _fTapInProgress = false;
 
   /// Steering ka tareeqa (sirf driving me): touch wheel
@@ -380,6 +391,9 @@ class _ControllerScreenState extends State<ControllerScreen>
     // steering pulse chalti rahegi. (Sources pehle saaf ho chuke
     // hain, is liye engine ko source-sync ki zaroorat nahi.)
     _resetSteerEngine(syncSource: false);
+    // v5.4: aim ke malik bhi saaf — warna purana 'attack'
+    // malik baad me AIM chhorne par right bit galat jor deta.
+    _aimHolders.clear();
     _hid.releaseAllKeys();
   }
 
@@ -2295,32 +2309,53 @@ class _ControllerScreenState extends State<ControllerScreen>
     );
   }
 
-  /// ATTACK button (v3, sirf paidal mode) — mouse ka LEFT button.
-  /// Dabaye rakho to daba rehta hai (larai/fire), chhoro to chhut
-  /// jata hai. Mouse button ki haalat HidService rakhta hai aur har
-  /// safety path (mode switch, disconnect, pause, dispose) par
-  /// zero hoti hai — click atak nahi sakta.
-  /// v4: setMouseButton se sirf apna bit badalta hai — AIM (right
-  /// button) aik saath daba ho to woh nahi kat-ta.
+  /// ATTACK button (v3, sirf paidal mode) — v5.4 se aim + fire
+  /// aik button me: dabate hi mouse ka LEFT (fire) aur RIGHT
+  /// (aim) dono bits lag jate hain, chhorne par dono chhut-te
+  /// hain — AIM button alag se daba ho to aim tabhi rehta hai.
+  /// Mouse button ki haalat HidService rakhta hai aur har safety
+  /// path (mode switch, disconnect, pause, dispose) par zero
+  /// hoti hai — click atak nahi sakta.
   Widget _attackButton() {
     return RoundButton(
       diameter: 80,
       label: 'ATTACK',
-      subLabel: 'Mouse',
+      subLabel: 'Aim + Fire',
       gradientTop: const Color(0xFFDC2626),
       gradientBottom: const Color(0xFF7F1D1D),
       borderColor: const Color(0xFFFCA5A5),
       onHeldChanged: (held) {
         _hid.setMouseButton(HidService.mouseButtonLeft, held);
+        // v5.4: ATTACK khud hi nishana lagata hai — right bit
+        // malik-gin ke saath lagao/chhoro.
+        _setAimHeldBy('attack', held);
       },
     );
   }
 
+  /// AIM ke malik — 'aim' button aur 'attack' button dono
+  /// right (aim) bit ko pakar sakte hain. Bit tabhi chhutta hai
+  /// jab dono chhor dein; is se AIM dabaye rakh kar ATTACK
+  /// chhorne par nishana nahi tootta, aur ATTACK chhorne par
+  /// aim us waqt nahi kat-ta jab AIM alag se daba ho.
+  void _setAimHeldBy(String source, bool held) {
+    if (held) {
+      _aimHolders.add(source);
+    } else {
+      _aimHolders.remove(source);
+    }
+    _hid.setMouseButton(
+      HidService.mouseButtonRight,
+      _aimHolders.isNotEmpty,
+    );
+  }
+
   /// AIM button (v4, sirf paidal mode) — mouse ka RIGHT button,
-  /// dabaye rakho. SA ki gunplay: AIM dabaye rakh kar ATTACK se
-  /// fire hota hai — dono mouse buttons HidService me alag bits
-  /// hain, aik saath dab sakte hain, aur har safety path par dono
-  /// zero hote hain (releaseAllKeys).
+  /// dabaye rakho. v5.4 se ATTACK khud bhi aim lagata hai; ye
+  /// button baghair fire ke sirf nishana lagane ke liye rehta
+  /// hai (masalan door se dekhna). Dono mouse buttons HidService
+  /// me alag bits hain aur har safety path par dono zero hote
+  /// hain (releaseAllKeys).
   Widget _aimButton() {
     return _PillButton(
       width: 96,
@@ -2331,7 +2366,7 @@ class _ControllerScreenState extends State<ControllerScreen>
       gradientBottom: const Color(0xFF1E293B),
       borderColor: const Color(0xFF94A3B8),
       onHeldChanged: (held) {
-        _hid.setMouseButton(HidService.mouseButtonRight, held);
+        _setAimHeldBy('aim', held);
       },
     );
   }
