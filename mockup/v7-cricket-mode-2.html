@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body { background:#04070a; display:flex; align-items:center; justify-content:center; height:100vh; }
+  .phone { width:900px; height:520px; border-radius:20px; overflow:hidden; position:relative;
+           background:radial-gradient(circle at 50% 62%, #17451f 0%, #0e2c15 55%, #081a0e 100%);
+           border:1px solid #2a4a33; box-shadow:0 0 60px rgba(46,230,107,.10), inset 0 1px 0 rgba(255,255,255,.06); }
+  .pitch { position:absolute; left:50%; top:56%; width:120px; height:270px; margin:-135px 0 0 -60px; border-radius:8px;
+           background:linear-gradient(180deg,#c9b083,#b39468); opacity:.20; }
+  .crease { position:absolute; left:50%; width:150px; height:2px; margin-left:-75px; background:rgba(255,255,255,.35); }
+  .dirlab { position:absolute; color:rgba(207,232,214,.55); font-size:12px; font-weight:800; letter-spacing:2px; }
+  .dirarr { position:absolute; color:rgba(123,247,159,.45); font-size:24px; font-weight:800; }
+  .topbar { position:relative; display:flex; align-items:center; justify-content:space-between; padding:12px 18px 4px 18px; z-index:5; }
+  .brand { color:#fff; font-size:19px; font-weight:800; letter-spacing:2px; text-shadow:0 2px 6px rgba(0,0,0,.6); }
+  .brand span { color:#2ee66b; }
+  .tabs { display:flex; gap:8px; }
+  .tab { color:#dfe9ef; background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:1px; }
+  .tab.on { color:#7bf79f; border-color:rgba(46,230,107,.6); background:rgba(46,230,107,.18); }
+  .modes { position:relative; display:flex; gap:6px; justify-content:center; padding:4px 0; z-index:5; }
+  .mode { color:#c4d4c9; font-size:11px; font-weight:800; letter-spacing:1.2px; padding:5px 11px; border-radius:999px; background:rgba(6,12,8,.45); border:1px solid rgba(255,255,255,.10); }
+  .mode.on { color:#7bf79f; background:rgba(46,230,107,.20); border-color:rgba(46,230,107,.65); box-shadow:0 0 14px rgba(46,230,107,.25); }
+  .movebox { position:absolute; left:20px; top:238px; z-index:5; text-align:center; }
+  .moverow { display:flex; gap:10px; align-items:center; justify-content:center; }
+  .movebtn { width:52px; height:52px; border-radius:50%; color:#7bf79f; font-size:22px; font-weight:800; display:flex; align-items:center; justify-content:center;
+             background:rgba(6,12,8,.55); border:1px solid rgba(46,230,107,.45); }
+  .movelab { margin-top:7px; color:#dfe9ef; font-size:10.5px; font-weight:800; letter-spacing:1.5px; background:rgba(6,12,8,.5); border-radius:6px; padding:3px 8px; }
+  .shots { position:absolute; right:20px; top:118px; z-index:5; width:288px; }
+  .psl { display:flex; gap:8px; }
+  .psl div { flex:1; text-align:center; padding:11px 0; border-radius:9px; color:#eaf5ec; font-size:14px; font-weight:800; letter-spacing:1.5px;
+             background:rgba(20,40,26,.72); border:1px solid rgba(46,230,107,.45); }
+  .psl .on { background:rgba(46,230,107,.30); color:#a9ffc0; border-color:#2ee66b; box-shadow:0 0 14px rgba(46,230,107,.30); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+  .gbtn { height:76px; border-radius:14px; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center;
+          background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.22); }
+  .gbtn .t { font-size:13.5px; font-weight:800; letter-spacing:1.2px; }
+  .gbtn .s { font-size:10px; color:#a9c4ae; margin-top:2px; }
+  .gbtn.loft { border-color:rgba(247,147,30,.6); }
+  .gbtn.loft .t { color:#ffb03a; }
+  .runrow { position:absolute; right:20px; bottom:16px; z-index:5; display:flex; gap:10px; }
+  .run { padding:11px 22px; border-radius:999px; color:#fff; font-size:13px; font-weight:800; letter-spacing:1.5px;
+         background:rgba(6,12,8,.6); border:1px solid rgba(255,255,255,.25); }
+  .run.go { border-color:rgba(46,230,107,.65); color:#7bf79f; }
+  .hint { position:absolute; left:0; right:0; bottom:16px; text-align:center; z-index:4; color:#eaf5ec; font-size:13.5px; font-weight:700; letter-spacing:.6px; text-shadow:0 2px 8px rgba(0,0,0,.8); }
+  .hint b { color:#7bf79f; }
+  svg.swipe { position:absolute; left:210px; top:150px; z-index:3; opacity:.85; }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="pitch"></div>
+    <div class="crease" style="top:200px;"></div>
+    <div class="crease" style="bottom:120px;"></div>
+    <div class="dirarr" style="left:50%; top:96px; transform:translateX(-50%);">▲</div>
+    <div class="dirlab" style="left:50%; top:122px; transform:translateX(-50%);">SEEDHA</div>
+    <div class="dirarr" style="left:330px; top:150px;">↗</div>
+    <div class="dirlab" style="left:300px; top:180px;">COVER</div>
+    <div class="dirarr" style="left:120px; top:150px;">↖</div>
+    <div class="dirlab" style="left:96px; top:180px;">LONG ON</div>
+    <div class="dirarr" style="left:52px; top:40%;">◀</div>
+    <div class="dirlab" style="left:80px; top:40.5%;">MIDWICKET</div>
+    <div class="dirarr" style="left:50%; bottom:64px; transform:translateX(-50%);">▼</div>
+    <div class="dirlab" style="left:50%; bottom:40px; transform:translateX(-50%);">PEECHE</div>
+    <svg class="swipe" width="240" height="150" viewBox="0 0 240 150">
+      <path d="M 25 130 Q 120 120 205 30" stroke="#7bf79f" stroke-width="4" fill="none" stroke-dasharray="10 8" stroke-linecap="round"/>
+      <path d="M 182 28 L 208 24 L 200 50 Z" fill="#7bf79f"/>
+      <circle cx="25" cy="130" r="9" fill="none" stroke="#7bf79f" stroke-width="3"/>
+    </svg>
+    <div class="topbar">
+      <div class="brand">GAMING <span>REMOTE</span></div>
+      <div class="tabs"><div class="tab on">🏏 BATTING</div><div class="tab">BOWLING</div></div>
+    </div>
+    <div class="modes">
+      <div class="mode">STEERING</div><div class="mode">TILT</div><div class="mode">CONTROLLER</div><div class="mode">ARROWS</div><div class="mode">FLY</div><div class="mode on">🏏 CRICKET</div>
+    </div>
+    <div class="movebox">
+      <div class="moverow"><div class="movebtn">«</div><div class="movebtn">»</div></div>
+      <div class="movelab">MOVE BATSMAN</div>
+    </div>
+    <div class="shots">
+      <div class="psl"><div>PUSH</div><div class="on">STROKE</div><div>LOFT</div></div>
+      <div class="grid">
+        <div class="gbtn"><div class="t">FRONT FOOT</div><div class="s">aage wala shot</div></div>
+        <div class="gbtn"><div class="t">BACK FOOT</div><div class="s">peeche wala shot</div></div>
+        <div class="gbtn"><div class="t">SPECIAL</div><div class="s">aage barh kar shot</div></div>
+        <div class="gbtn"><div class="t">LEAVE</div><div class="s">ball chor do</div></div>
+      </div>
+    </div>
+    <div class="runrow"><div class="run go">RUN</div><div class="run">CANCEL</div></div>
+    <div class="hint">Shot button chuno, phir <b>puri screen par swipe</b> — ball usi side jayegi</div>
+  </div>
+</body>
+</html>

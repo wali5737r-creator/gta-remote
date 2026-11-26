@@ -803,3 +803,25 @@ Pad chhoo → aim + drag se aim ghume; ungli uthao → aim chhute;
 ATTACK se aim+fire; AUTO-AIM OFF → ATTACK sirf fire, pad sirf
 camera; AIM akela sirf nishana; mode switch ke baad koi atka
 hua aim nahi.
+
+## v5.5.0 (build 7) — Camera pad up/down fix
+
+- **Malik ki report (2026-11-26):** nishana set karte waqt camera
+  bht ziada upar ya neeche chala jata tha, aik jagah rukta nahi
+  tha — firing kharab, mission fail. (Glint ne pehle ulta samjha
+  tha — sust nahi, TEZ tha.)
+- **Root cause:** app ka dx/dy pipeline symmetric hai (code +
+  v5.3→v5.4 diff check); asal wajah SA ke aim mode ka chhota
+  up/down range + pad ki kam unchai par bare Y counts.
+- **Fix (sirf `camera_pad.dart`):** naya `yScale = 0.5` param;
+  `_handleMove` me dy par lagta hai. dx pehle jaisa. Poora pad
+  drag ≈ poora aim range; chhoti drag = rukne wali harkat.
+- **QA:** `IMPROVEMENTS_V9.md` — teen nazariye, traces T1–T6,
+  0 findings. Qabool-shuda asar: map pointer Y bhi aadhi speed.
+- **HID / re-pair:** `android/` ZERO changes; descriptor md5
+  `ba778a…` unchanged → **no re-pair, v5.4 ke upar install karo.**
+
+### Not device-verified (owner's session decides)
+
+Nishana darmiyan me rukta hai ya nahi; 0.5 scale sahi hai ya
+adjust karna hai.

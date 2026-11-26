@@ -1,7 +1,7 @@
 name: gta_remote
 description: "Gaming Remote - phone ko Bluetooth steering wheel bana kar laptop par GTA chalao. Koi internet nahi, laptop par koi program nahi."
 publish_to: 'none'
-version: 5.4.0+6
+version: 5.5.0+7
 
 environment:
   sdk: '>=3.13.1 <4.0.0'

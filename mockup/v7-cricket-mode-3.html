@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body { background:#04070a; display:flex; align-items:center; justify-content:center; height:100vh; }
+  .phone { width:900px; height:520px; border-radius:20px; overflow:hidden; position:relative;
+           background:radial-gradient(circle at 50% 40%, #17451f 0%, #0e2c15 55%, #081a0e 100%);
+           border:1px solid #2a4a33; box-shadow:0 0 60px rgba(46,230,107,.10), inset 0 1px 0 rgba(255,255,255,.06); }
+  .pitch { position:absolute; left:50%; top:52%; width:110px; height:250px; margin:-125px 0 0 -55px; border-radius:8px;
+           background:linear-gradient(180deg,#c9b083,#b39468); opacity:.18; }
+  .crease { position:absolute; left:50%; width:140px; height:2px; margin-left:-70px; background:rgba(255,255,255,.30); }
+  .dirlab { position:absolute; color:rgba(207,232,214,.60); font-size:12px; font-weight:800; letter-spacing:2px; }
+  .topbar { position:relative; display:flex; align-items:center; justify-content:space-between; padding:12px 18px 4px 18px; z-index:5; }
+  .brand { color:#fff; font-size:19px; font-weight:800; letter-spacing:2px; text-shadow:0 2px 6px rgba(0,0,0,.6); }
+  .brand span { color:#2ee66b; }
+  .tabs { display:flex; gap:8px; }
+  .tab { color:#dfe9ef; background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:1px; }
+  .tab.on { color:#7bf79f; border-color:rgba(46,230,107,.6); background:rgba(46,230,107,.18); }
+  .modes { position:relative; display:flex; gap:6px; justify-content:center; padding:4px 0; z-index:5; }
+  .mode { color:#c4d4c9; font-size:11px; font-weight:800; letter-spacing:1.2px; padding:5px 11px; border-radius:999px; background:rgba(6,12,8,.45); border:1px solid rgba(255,255,255,.10); }
+  .mode.on { color:#7bf79f; background:rgba(46,230,107,.20); border-color:rgba(46,230,107,.65); box-shadow:0 0 14px rgba(46,230,107,.25); }
+  .cap { color:#7bf79f; font-size:11px; font-weight:800; letter-spacing:2.5px; text-align:center; margin-bottom:8px; text-shadow:0 2px 6px rgba(0,0,0,.7); }
+  .shotsel { position:absolute; left:20px; top:150px; z-index:5; width:196px; }
+  .shot { padding:15px 0; margin-bottom:10px; text-align:center; border-radius:13px; color:#eaf5ec;
+          background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.20); }
+  .shot .t { font-size:15px; font-weight:800; letter-spacing:1.3px; }
+  .shot .s { font-size:10.5px; color:#a9c4ae; margin-top:2px; }
+  .shot.on { background:rgba(46,230,107,.26); border-color:#2ee66b; color:#a9ffc0; box-shadow:0 0 16px rgba(46,230,107,.30); }
+  .rightcol { position:absolute; right:20px; top:150px; z-index:5; width:196px; }
+  .loft { height:104px; border-radius:15px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#ffb03a;
+          background:linear-gradient(180deg, rgba(247,147,30,.22), rgba(247,147,30,.05)); border:1px solid rgba(247,147,30,.6); }
+  .loft .t { font-size:19px; font-weight:800; letter-spacing:2px; }
+  .loft .s { font-size:10.5px; color:#d8c9ae; margin-top:3px; text-align:center; padding:0 8px; }
+  .runrow { display:flex; gap:10px; margin-top:12px; }
+  .run { flex:1; padding:13px 0; text-align:center; border-radius:12px; color:#fff; font-size:13px; font-weight:800; letter-spacing:1.2px;
+         background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.22); }
+  .run.go { border-color:rgba(46,230,107,.65); color:#7bf79f; }
+  .smrow { display:flex; gap:10px; margin-top:12px; }
+  .sm { flex:1; padding:9px 0; text-align:center; border-radius:10px; color:#cfe8d6; font-size:11px; font-weight:800; letter-spacing:1.2px;
+        background:rgba(6,12,8,.45); border:1px solid rgba(255,255,255,.14); }
+  .flip { position:absolute; left:20px; bottom:16px; z-index:5; padding:9px 16px; border-radius:999px; color:#cfe8d6; font-size:11.5px; font-weight:800; letter-spacing:1.2px;
+          background:rgba(6,12,8,.55); border:1px solid rgba(255,255,255,.20); }
+  .hint { position:absolute; left:0; right:0; bottom:16px; text-align:center; z-index:4; color:#eaf5ec; font-size:13.5px; font-weight:700; letter-spacing:.6px; text-shadow:0 2px 8px rgba(0,0,0,.85); }
+  .hint b { color:#7bf79f; }
+  svg.swipe { position:absolute; left:300px; top:170px; z-index:3; opacity:.9; }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="pitch"></div>
+    <div class="crease" style="top:196px;"></div>
+    <div class="crease" style="bottom:110px;"></div>
+    <div class="dirlab" style="left:50%; top:104px; transform:translateX(-50%);">PEECHE ▼</div>
+    <div class="dirlab" style="left:238px; top:128px;">THIRD MAN</div>
+    <div class="dirlab" style="right:238px; top:128px;">FINE LEG</div>
+    <div class="dirlab" style="left:228px; top:47%;">◀ POINT</div>
+    <div class="dirlab" style="right:228px; top:47%;">LEG SIDE ▶</div>
+    <div class="dirlab" style="left:252px; bottom:96px;">COVER</div>
+    <div class="dirlab" style="right:252px; bottom:96px;">ON-DRIVE</div>
+    <div class="dirlab" style="left:50%; bottom:64px; transform:translateX(-50%);">▲ SEEDHA</div>
+    <svg class="swipe" width="230" height="170" viewBox="0 0 230 170">
+      <path d="M 190 25 Q 110 80 40 140" stroke="#7bf79f" stroke-width="4" fill="none" stroke-dasharray="10 8" stroke-linecap="round"/>
+      <path d="M 62 128 L 34 146 L 60 152 Z" fill="#7bf79f"/>
+      <circle cx="192" cy="24" r="9" fill="none" stroke="#7bf79f" stroke-width="3"/>
+    </svg>
+    <div class="topbar">
+      <div class="brand">GAMING <span>REMOTE</span></div>
+      <div class="tabs"><div class="tab on">🏏 BATTING</div><div class="tab">BOWLING</div></div>
+    </div>
+    <div class="modes">
+      <div class="mode">STEERING</div><div class="mode">TILT</div><div class="mode">CONTROLLER</div><div class="mode">ARROWS</div><div class="mode">FLY</div><div class="mode on">🏏 CRICKET</div>
+    </div>
+    <div class="shotsel">
+      <div class="cap">SHOT CHUNO</div>
+      <div class="shot on"><div class="t">FRONT FOOT</div><div class="s">aage paon wala shot</div></div>
+      <div class="shot"><div class="t">BACK FOOT</div><div class="s">peeche paon wala shot</div></div>
+      <div class="shot"><div class="t">ADVANCE</div><div class="s">aage barh kar marna</div></div>
+    </div>
+    <div class="rightcol">
+      <div class="cap">HAWA WALA SHOT</div>
+      <div class="loft"><div class="t">🏏 LOFT</div><div class="s">dabaye rakho + swipe = chhakka shot</div></div>
+      <div class="runrow"><div class="run go">RUN</div><div class="run">CANCEL</div></div>
+      <div class="smrow"><div class="sm">PAUSE</div><div class="sm">MENU</div></div>
+    </div>
+    <div class="flip">🔄 CAMERA ULTA</div>
+    <div class="hint">Shot chuno, phir ball aate hi <b>matlooba side swipe</b> karo</div>
+  </div>
+</body>
+</html>

@@ -24,6 +24,7 @@ class CameraPad extends StatefulWidget {
     super.key,
     required this.onMove,
     this.sensitivity = 2.2,
+    this.yScale = 0.5,
     this.label = 'CAMERA',
     this.onTouchStart,
     this.onTouchEnd,
@@ -35,6 +36,15 @@ class CameraPad extends StatefulWidget {
   /// Ungli ki harkat ka multiplier. 2.2 par halki si drag par
   /// camera aaram se ghum jata hai; 1.0 bohat sust lagta tha.
   final double sensitivity;
+
+  /// Up/down (Y) harkat ka alag multiplier (v5.5). SA me nishana
+  /// bandhte waqt up/down ka kul range bohat chhota hai — utni hi
+  /// mouse harkat par camera seedha upar ya neeche ja kar atak
+  /// jata tha, nishana aik jagah rukta hi nahi tha aur firing
+  /// kharab hoti thi (Muhammad ki report, 2026-11-26). 0.5 par
+  /// poora pad drag = takreeban poora up/down range, aur chhoti
+  /// drag = chhoti, rukne wali harkat. Left/right pehle jaisi tez.
+  final double yScale;
 
   /// Pad par likha naam — paidal mode me auto-aim chalu ho to
   /// 'AIM + CAMERA' (v5.4), warna 'CAMERA'.
@@ -104,7 +114,7 @@ class _CameraPadState extends State<CameraPad> {
     final delta = event.localPosition - last;
     _lastPosition = event.localPosition;
     _pendingDx += delta.dx * widget.sensitivity;
-    _pendingDy += delta.dy * widget.sensitivity;
+    _pendingDy += delta.dy * widget.sensitivity * widget.yScale;
   }
 
   void _handleUp(PointerEvent event) {
